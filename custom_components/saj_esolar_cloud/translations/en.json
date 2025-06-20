@@ -6,17 +6,46 @@
                 "description": "Set up SAJ eSolar Cloud integration. You need your eSolar Portal credentials.",
                 "data": {
                     "username": "Username",
-                    "password": "Password"
+                    "password": "Password",
+                    "region": "Region"
+                },
+                "data_description": {
+                    "username": "Your eSolar Portal username",
+                    "password": "Your eSolar Portal password",
+                    "region": "Select your region (EU, India, or China)"
+                }
+            },
+            "plant_selection": {
+                "title": "Select Plants to Monitor",
+                "description": "Choose which solar plants you want to monitor. You can select multiple plants.",
+                "data": {
+                    "monitored_plants": "Plants to Monitor"
+                },
+                "data_description": {
+                    "monitored_plants": "Select one or more plants from your account"
                 }
             }
         },
         "error": {
             "cannot_connect": "Failed to connect to the SAJ eSolar API",
-            "invalid_auth": "Invalid authentication",
-            "unknown": "Unexpected error"
+            "invalid_auth": "Invalid authentication credentials",
+            "no_plants": "No plants found in your account",
+            "no_plants_selected": "Please select at least one plant to monitor",
+            "unknown": "Unexpected error occurred"
         },
         "abort": {
             "already_configured": "Account is already configured"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "SAJ eSolar Cloud Options",
+                "description": "Configure options for SAJ eSolar Cloud integration.",
+                "data": {
+                    "monitored_plants": "Plants to Monitor"
+                }
+            }
         }
     },
     "entity": {
@@ -25,13 +54,13 @@
                 "name": "Current Power"
             },
             "todayElectricity": {
-                "name": "Today's Generation"
+                "name": "Today Generation"
             },
             "monthElectricity": {
-                "name": "Month's Generation"
+                "name": "Current Month Generation"
             },
             "yearElectricity": {
-                "name": "Year's Generation"
+                "name": "Current Year Generation"
             },
             "totalElectricity": {
                 "name": "Total Generation"
@@ -54,6 +83,27 @@
             "totalReduceCo2": {
                 "name": "CO₂ Reduction"
             },
+            "dailyConsumption": {
+                "name": "Today Consumption"
+            },
+            "dailyGridImport": {
+                "name": "Today Grid Import"
+            },
+            "dailyGridExport": {
+                "name": "Today Grid Export"
+            },
+            "dailyBatteryCharge": {
+                "name": "Today Battery Charge"
+            },
+            "dailyBatteryDischarge": {
+                "name": "Today Battery Discharge"
+            },
+            "dailyTreesPlanted": {
+                "name": "Today Trees Planted"
+            },
+            "dailyReduceCo2": {
+                "name": "Today CO₂ Reduction"
+            },
             "lastUploadTime": {
                 "name": "Last Update"
             },
@@ -63,8 +113,14 @@
             "gridPower": {
                 "name": "Grid Power"
             },
+            "gridPowerAbsolute": {
+                "name": "Grid Power Absolute"
+            },
             "batteryPower": {
                 "name": "Battery Power"
+            },
+            "batteryPowerAbsolute": {
+                "name": "Battery Power Absolute"
             },
             "outPower": {
                 "name": "Output Power"
@@ -80,6 +136,21 @@
             },
             "batCapcity": {
                 "name": "Battery Capacity"
+            },
+            "usableBatCapacity": {
+                "name": "Usable Battery Capacity"
+            },
+            "batteryWorkTime": {
+                "name": "Battery Remaining Time"
+            },
+            "operatingMode": {
+                "name": "Operating Mode"
+            },
+            "batVoltage": {
+                "name": "Battery Voltage"
+            },
+            "batTemperature": {
+                "name": "Battery Temperature"
             },
             "pvDirection": {
                 "name": "PV Direction",
@@ -100,9 +171,9 @@
             "batteryDirection": {
                 "name": "Battery Direction",
                 "state": {
-                    "Importing": "Charging",
-                    "Standby": "Standby",
-                    "Exporting": "Discharging"
+                    "Charging": "Charging",
+                    "Idle": "Idle",
+                    "Discharging": "Discharging"
                 }
             },
             "outPutDirection": {
@@ -119,6 +190,41 @@
                     "Yes": "Yes",
                     "No": "No"
                 }
+            },
+            "batSoc": {
+                "name": "Battery Level"
+            },
+            "batSoh": {
+                "name": "Battery Health"
+            },
+            "runningState": {
+                "name": "Battery Status",
+                "state": {
+                    "Offline": "Offline",
+                    "Standby": "Standby",
+                    "Running": "Running"
+                }
+            },
+            "batModel": {
+                "name": "Battery Model"
+            },
+            "batPower": {
+                "name": "Battery Power"
+            },
+            "batCurrent": {
+                "name": "Battery Current"
+            },
+            "todayBatCharge": {
+                "name": "Today Battery Charge"
+            },
+            "todayBatDischarge": {
+                "name": "Today Battery Discharge"
+            },
+            "totalBatCharge": {
+                "name": "Total Battery Charge"
+            },
+            "totalBatDischarge": {
+                "name": "Total Battery Discharge"
             }
         }
     }

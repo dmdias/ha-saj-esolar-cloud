@@ -1,0 +1,231 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "SAJ eSolar Cloud",
+                "description": "Configura la integració SAJ eSolar Cloud. Necessites les credencials del Portal eSolar.",
+                "data": {
+                    "username": "Nom d'usuari",
+                    "password": "Contrasenya",
+                    "region": "Regió"
+                },
+                "data_description": {
+                    "username": "El teu nom d'usuari del Portal eSolar",
+                    "password": "La teva contrasenya del Portal eSolar",
+                    "region": "Selecciona la teva regió (UE, Índia o Xina)"
+                }
+            },
+            "plant_selection": {
+                "title": "Selecciona les Plantes a Monitoritzar",
+                "description": "Tria quines plantes solars vols monitoritzar. Pots seleccionar múltiples plantes.",
+                "data": {
+                    "monitored_plants": "Plantes a Monitoritzar"
+                },
+                "data_description": {
+                    "monitored_plants": "Selecciona una o més plantes del teu compte"
+                }
+            }
+        },
+        "error": {
+            "cannot_connect": "No s'ha pogut connectar amb l'API de SAJ eSolar",
+            "invalid_auth": "Credencials d'autenticació invàlides",
+            "no_plants": "No s'han trobat plantes al teu compte",
+            "no_plants_selected": "Si us plau, selecciona almenys una planta per monitoritzar",
+            "unknown": "S'ha produït un error inesperat"
+        },
+        "abort": {
+            "already_configured": "El compte ja està configurat"
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Opcions de SAJ eSolar Cloud",
+                "description": "Configura les opcions per a la integració SAJ eSolar Cloud.",
+                "data": {
+                    "monitored_plants": "Plantes a Monitoritzar"
+                }
+            }
+        }
+    },
+    "entity": {
+        "sensor": {
+            "nowPower": {
+                "name": "Potència Actual"
+            },
+            "todayElectricity": {
+                "name": "Generació d'Avui"
+            },
+            "monthElectricity": {
+                "name": "Generació del Mes Actual"
+            },
+            "yearElectricity": {
+                "name": "Generació de l'Any Actual"
+            },
+            "totalElectricity": {
+                "name": "Generació Total"
+            },
+            "totalConsumpElec": {
+                "name": "Consum Total"
+            },
+            "totalBuyElec": {
+                "name": "Importació Total de la Xarxa"
+            },
+            "totalSellElec": {
+                "name": "Exportació Total a la Xarxa"
+            },
+            "selfUseRate": {
+                "name": "Taxa d'Autoconsum"
+            },
+            "totalPlantTreeNum": {
+                "name": "Arbres Plantats"
+            },
+            "totalReduceCo2": {
+                "name": "Reducció de CO₂"
+            },
+            "dailyConsumption": {
+                "name": "Consum d'Avui"
+            },
+            "dailyGridImport": {
+                "name": "Importació d'Avui de la Xarxa"
+            },
+            "dailyGridExport": {
+                "name": "Exportació d'Avui a la Xarxa"
+            },
+            "dailyBatteryCharge": {
+                "name": "Càrrega d'Avui de la Bateria"
+            },
+            "dailyBatteryDischarge": {
+                "name": "Descàrrega d'Avui de la Bateria"
+            },
+            "dailyTreesPlanted": {
+                "name": "Arbres Plantats Avui"
+            },
+            "dailyReduceCo2": {
+                "name": "Reducció de CO₂ d'Avui"
+            },
+            "lastUploadTime": {
+                "name": "Última Actualització"
+            },
+            "pvPower": {
+                "name": "Potència FV"
+            },
+            "gridPower": {
+                "name": "Potència de la Xarxa"
+            },
+            "gridPowerAbsolute": {
+                "name": "Potència Absoluta de la Xarxa"
+            },
+            "batteryPower": {
+                "name": "Potència de la Bateria"
+            },
+            "batteryPowerAbsolute": {
+                "name": "Potència Absoluta de la Bateria"
+            },
+            "outPower": {
+                "name": "Potència de Sortida"
+            },
+            "totalLoadPower": {
+                "name": "Potència Total de Càrrega"
+            },
+            "batCurr": {
+                "name": "Corrent de la Bateria"
+            },
+            "batEnergyPercent": {
+                "name": "Nivell de la Bateria"
+            },
+            "batCapcity": {
+                "name": "Capacitat de la Bateria"
+            },
+            "usableBatCapacity": {
+                "name": "Capacitat Utilitzable de la Bateria"
+            },
+            "batteryWorkTime": {
+                "name": "Temps Restant de la Bateria"
+            },
+            "operatingMode": {
+                "name": "Mode de Funcionament"
+            },
+            "batVoltage": {
+                "name": "Voltatge de la Bateria"
+            },
+            "batTemperature": {
+                "name": "Temperatura de la Bateria"
+            },
+            "pvDirection": {
+                "name": "Direcció FV",
+                "state": {
+                    "Importing": "Important",
+                    "Standby": "En Espera",
+                    "Exporting": "Exportant"
+                }
+            },
+            "gridDirection": {
+                "name": "Direcció de la Xarxa",
+                "state": {
+                    "Importing": "Important",
+                    "Standby": "En Espera",
+                    "Exporting": "Exportant"
+                }
+            },
+            "batteryDirection": {
+                "name": "Direcció de la Bateria",
+                "state": {
+                    "Charging": "Carregant",
+                    "Idle": "Inactiva",
+                    "Discharging": "Descarregant"
+                }
+            },
+            "outPutDirection": {
+                "name": "Direcció de Sortida",
+                "state": {
+                    "Importing": "Important",
+                    "Standby": "En Espera",
+                    "Exporting": "Exportant"
+                }
+            },
+            "isOnline": {
+                "name": "Dispositiu En Línia",
+                "state": {
+                    "Yes": "Sí",
+                    "No": "No"
+                }
+            },
+            "batSoc": {
+                "name": "Nivell de la Bateria"
+            },
+            "batSoh": {
+                "name": "Salut de la Bateria"
+            },
+            "runningState": {
+                "name": "Estat de la Bateria",
+                "state": {
+                    "Offline": "Fora de Línia",
+                    "Standby": "En Espera",
+                    "Running": "Funcionant"
+                }
+            },
+            "batModel": {
+                "name": "Model de la Bateria"
+            },
+            "batPower": {
+                "name": "Potència de la Bateria"
+            },
+            "batCurrent": {
+                "name": "Corrent de la Bateria"
+            },
+            "todayBatCharge": {
+                "name": "Càrrega d'Avui de la Bateria"
+            },
+            "todayBatDischarge": {
+                "name": "Descàrrega d'Avui de la Bateria"
+            },
+            "totalBatCharge": {
+                "name": "Càrrega Total de la Bateria"
+            },
+            "totalBatDischarge": {
+                "name": "Descàrrega Total de la Bateria"
+            }
+        }
+    }
+}

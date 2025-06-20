@@ -5,8 +5,16 @@ DOMAIN: Final = "saj_esolar_cloud"
 MANUFACTURER: Final = "SAJ"
 MODEL: Final = "H1"
 
-# Base URL for the SAJ eSolar API
-BASE_URL: Final = "https://fop.saj-electric.com/saj"
+# Region configuration
+CONF_REGION: Final = "region"
+CONF_MONITORED_PLANTS: Final = "monitored_plants"
+
+# Regions and their base URLs
+REGIONS = {
+    "eu": "https://eop.saj-electric.com/dev-api/api/v1",
+    "in": "https://iop.saj-electric.com/dev-api/api/v1",
+    "cn": "https://op.saj-electric.cn/dev-api/api/v1"
+}
 
 # Update interval
 UPDATE_INTERVAL: Final = 300  # 5 minutes
@@ -225,9 +233,30 @@ H1_SENSORS = {
     "batCapcity": {
         "name": "Battery Capacity",
         "icon": "mdi:battery-charging-100",
+        "device_class": "energy_storage",
+        "state_class": None,
+        "unit": "kWh",
+    },
+    "usableBatCapacity": {
+        "name": "Usable Battery Capacity",
+        "icon": "mdi:battery-charging-80",
+        "device_class": "energy_storage",
+        "state_class": "measurement",
+        "unit": "kWh",
+    },
+    "batteryWorkTime": {
+        "name": "Battery Remaining Time",
+        "icon": "mdi:timer-outline",
+        "device_class": "duration",
+        "state_class": "measurement",
+        "unit": "h",
+    },
+    "operatingMode": {
+        "name": "Operating Mode",
+        "icon": "mdi:cog",
         "device_class": None,
         "state_class": None,
-        "unit": "Ah",
+        "unit": None,
     },
     "batVoltage": {
         "name": "Battery Voltage",
@@ -294,12 +323,107 @@ BATTERY_STATES = {
     1: "Discharging"
 }
 
-# API endpoints
+# New API endpoints for Elekeeper
 ENDPOINTS = {
-    "login": "/login",
-    "plant_list": "/monitor/site/getUserPlantList",
-    "plant_detail": "/monitor/site/getPlantDetailInfo",
-    "device_power": "/monitor/site/getStoreOrAcDevicePowerInfo",
-    "plant_chart": "/monitor/site/getPlantDetailChart2",
-    "battery_info": "/cloudMonitor/deviceInfo/findBatteryRealTimeList"
+    "login": "/sys/login",
+    "plant_list": "/monitor/plant/getEndUserPlantList",
+    "plant_detail": "/monitor/plant/getOnePlantInfo",
+    "device_list": "/monitor/device/getDeviceList",
+    "device_info": "/monitor/device/getOneDeviceInfo",
+    "battery_list": "/monitor/battery/getBatteryList",
+    "battery_info": "/monitor/battery/getOneDeviceBatteryInfo",
+    "battery_statistics": "/monitor/home/getHomeBatteryStatisticsData",
+    "ems_list": "/monitor/plant/ems/getEmsListByPlant",
+    "plant_statistics": "/monitor/home/getPlantStatisticsData",
+    "plant_overview": "/monitor/home/getPlantGridOverviewInfo",
+    "energy_flow": "/monitor/home/getDeviceEneryFlowData",
+    "raw_data": "/monitor/deviceData/findRawdataPageList"
+}
+
+# Battery sensor definitions for individual batteries
+BATTERY_SENSORS = {
+    "batSoc": {
+        "name": "Battery Level",
+        "icon": "mdi:battery",
+        "device_class": "battery",
+        "state_class": "measurement",
+        "unit": "%",
+    },
+    "batTemperature": {
+        "name": "Battery Temperature",
+        "icon": "mdi:thermometer",
+        "device_class": "temperature",
+        "state_class": "measurement",
+        "unit": "°C",
+    },
+    "batSoh": {
+        "name": "Battery Health",
+        "icon": "mdi:battery-heart",
+        "device_class": None,
+        "state_class": "measurement",
+        "unit": "%",
+    },
+    "runningState": {
+        "name": "Battery Status",
+        "icon": "mdi:battery-charging",
+        "device_class": None,
+        "state_class": None,
+        "unit": None,
+    },
+    "batModel": {
+        "name": "Battery Model",
+        "icon": "mdi:information",
+        "device_class": None,
+        "state_class": None,
+        "unit": None,
+    },
+    "batPower": {
+        "name": "Battery Power",
+        "icon": "mdi:battery-charging",
+        "device_class": "power",
+        "state_class": "measurement",
+        "unit": "W",
+    },
+    "batCurrent": {
+        "name": "Battery Current",
+        "icon": "mdi:current-dc",
+        "device_class": "current",
+        "state_class": "measurement",
+        "unit": "A",
+    },
+    "batVoltage": {
+        "name": "Battery Voltage",
+        "icon": "mdi:lightning-bolt",
+        "device_class": "voltage",
+        "state_class": "measurement",
+        "unit": "V",
+    },
+    "todayBatCharge": {
+        "name": "Today Battery Charge",
+        "icon": "mdi:battery-plus",
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit": "kWh",
+    },
+    "todayBatDischarge": {
+        "name": "Today Battery Discharge",
+        "icon": "mdi:battery-minus",
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit": "kWh",
+    },
+    "totalBatCharge": {
+        "name": "Total Battery Charge",
+        "icon": "mdi:battery-plus",
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit": "kWh",
+    },
+    "totalBatDischarge": {
+        "name": "Total Battery Discharge",
+        "icon": "mdi:battery-minus",
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit": "kWh",
+    },
 }
