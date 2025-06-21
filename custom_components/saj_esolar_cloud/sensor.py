@@ -220,8 +220,8 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
             elif self._sensor_key == "batteryPowerAbsolute":
                 return float(energy_flow.get("batPower", 0))
             elif self._sensor_key == "outPower":
-                # Output power - not directly available, use device powerNow
-                return float(device_data.get("powerNow", 0))
+                # Output power - house consumption from energy flow
+                return float(energy_flow.get("totalLoadPowerwatt", 0))
             elif self._sensor_key == "totalLoadPower":
                 # Total load power - correct field name
                 return float(energy_flow.get("totalLoadPowerwatt", 0))
