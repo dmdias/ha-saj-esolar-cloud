@@ -225,6 +225,9 @@
             },
             "totalBatDischarge": {
                 "name": "Descàrrega Total de la Bateria"
+            },
+            "inverterStatus": {
+                "name": "Estat de l'Inversor"
             }
         }
     }

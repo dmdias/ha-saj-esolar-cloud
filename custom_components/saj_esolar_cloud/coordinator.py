@@ -79,6 +79,9 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
                 # Get battery system info for this plant
                 battery_info = await self._get_battery_info_for_plant(plant_uid)
 
+                # Get alarm information for this plant
+                device_alarms = await self._get_device_alarms_for_plant(plant_uid)
+
                 plants_data[plant_uid] = {
                     "plant_info": plant_info,
                     "plant_details": plant_details,
@@ -87,6 +90,7 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
                     "plant_statistics": plant_statistics,
                     "energy_flow": energy_flow,
                     "battery_info": battery_info,
+                    "device_alarms": device_alarms,
                 }
 
             return plants_data
@@ -331,6 +335,44 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
         ) as resp:
             if resp.status != 200:
                 raise UpdateFailed(f"Failed to get battery info: {resp.status}")
+            return await resp.json()
+
+    async def _get_device_alarms_for_plant(self, plant_uid: str) -> dict[str, Any]:
+        """Get device alarms for specific plant."""
+        # Get device list first to get deviceSn
+        device_list = await self._get_device_list_for_plant(plant_uid)
+        device_sn = None
+        if device_list.get("data", {}).get("list"):
+            device_sn = device_list["data"]["list"][0]["deviceSn"]
+
+        if not device_sn:
+            raise UpdateFailed(f"No device found for plant {plant_uid}")
+
+        # Prepare form data for POST request
+        form_data = {
+            "deviceSn": device_sn,
+            "orderByIndex": "1",
+            "pageNo": "1",
+            "pageSize": "10",
+            "alarmCommonState": "1",
+            "searchOfficeIdArr": "1",
+            'appProjectName': 'elekeeper',
+            'clientDate': datetime.now().strftime("%Y-%m-%d"),
+            'lang': 'en',
+            'timeStamp': str(int(time.time() * 1000)),
+            'random': generatkey(32),
+            'clientId': 'esolar-monitor-admin',
+        }
+
+        signed = calc_signature(form_data)
+
+        async with self.session.post(
+            f"{self.base_url}{ENDPOINTS['device_alarms']}",
+            data=signed,
+            headers={'Authorization': self.auth_token},
+        ) as resp:
+            if resp.status != 200:
+                raise UpdateFailed(f"Failed to get device alarms: {resp.status}")
             return await resp.json()
 
     async def _get_plant_statistics(self, plant_data: dict[str, Any]) -> dict[str, Any]:

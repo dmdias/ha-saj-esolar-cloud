@@ -162,6 +162,7 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
             plant_stats = plant_data.get("plant_statistics", {}).get("data", {})
             energy_flow = plant_data.get("energy_flow", {}).get("data", {})
             battery_info = plant_data.get("battery_info", {}).get("data", {})
+            device_alarms = plant_data.get("device_alarms", {}).get("data", {})
 
             # Plant Detail Sensors - map from new plant data structure
             if self._sensor_key == "nowPower":
@@ -253,6 +254,21 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
             elif self._sensor_key == "isOnline":
                 running_state = device_data.get("runningState", 0)
                 return "Yes" if int(running_state) == 1 else "No"
+            elif self._sensor_key == "inverterStatus":
+                # Inverter status based on deviceStatus from plant statistics
+                device_status = plant_stats.get("deviceStatus", 2)
+
+                if device_status == 2:
+                    return "OK"
+                elif device_status == 3:
+                    return "Alarm"
+                else:
+                    # Log unknown status for debugging
+                    from homeassistant.core import HomeAssistant
+                    import logging
+                    _LOGGER = logging.getLogger(__name__)
+                    _LOGGER.warning(f"Unknown deviceStatus: {device_status} for plant {self._plant_uid}")
+                    return "Alarm"
 
             # Daily Values from plant statistics and device data - correct field names
             elif self._sensor_key == "dailyConsumption":
@@ -300,29 +316,59 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
         """Return additional state attributes for main plant sensors."""
-        if self._sensor_key != "operatingMode":
-            return None
+        if self._sensor_key == "operatingMode":
+            try:
+                # Get data for this specific plant
+                plant_data = self.coordinator.data.get(self._plant_uid, {})
+                battery_info = plant_data.get("battery_info", {}).get("data", {})
 
-        try:
-            # Get data for this specific plant
-            plant_data = self.coordinator.data.get(self._plant_uid, {})
-            battery_info = plant_data.get("battery_info", {}).get("data", {})
+                # Add system-level attributes to operating mode sensor
+                attributes = {}
 
-            # Add system-level attributes to operating mode sensor
-            attributes = {}
+                battery_quantity = battery_info.get("batteryQuantity")
+                if battery_quantity:
+                    attributes["battery_quantity"] = battery_quantity
 
-            battery_quantity = battery_info.get("batteryQuantity")
-            if battery_quantity:
-                attributes["battery_quantity"] = battery_quantity
+                update_date = battery_info.get("updateDate")
+                if update_date:
+                    attributes["last_update"] = update_date
 
-            update_date = battery_info.get("updateDate")
-            if update_date:
-                attributes["last_update"] = update_date
+                return attributes if attributes else None
 
-            return attributes if attributes else None
+            except (KeyError, TypeError, ValueError):
+                pass
 
-        except (KeyError, TypeError, ValueError):
-            pass
+        elif self._sensor_key == "inverterStatus":
+            try:
+                # Get data for this specific plant
+                plant_data = self.coordinator.data.get(self._plant_uid, {})
+                plant_stats = plant_data.get("plant_statistics", {}).get("data", {})
+                device_alarms = plant_data.get("device_alarms", {}).get("data", {})
+
+                device_status = plant_stats.get("deviceStatus", 2)
+                attributes = {}
+
+                if device_status == 3:
+                    # Device has alarm status, get alarm details
+                    alarm_list = device_alarms.get("list", [])
+                    if alarm_list:
+                        # Get the first (most recent) alarm
+                        alarm = alarm_list[0]
+                        attributes["alarm_name"] = alarm.get("alarmName", "Unknown")
+                        attributes["alarm_level"] = alarm.get("alarmLevelName", "Unknown")
+                        attributes["alarm_duration"] = alarm.get("alarmDuration", "Unknown")
+                        attributes["alarm_start_time"] = alarm.get("alarmStartTime", "Unknown")
+                        attributes["alarm_state"] = alarm.get("alarmStateName", "Unknown")
+                    else:
+                        attributes["alarm_message"] = "Alarm status detected but no alarm details available"
+                elif device_status not in [2, 3]:
+                    # Unknown device status
+                    attributes["alarm_message"] = f"Unknown deviceStatus {device_status} detected"
+
+                return attributes if attributes else None
+
+            except (KeyError, TypeError, ValueError):
+                pass
 
         return None
 

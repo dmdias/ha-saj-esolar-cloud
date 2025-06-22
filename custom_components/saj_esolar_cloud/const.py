@@ -306,6 +306,13 @@ H1_SENSORS = {
         "device_class": None,
         "state_class": None,
         "unit": None,
+    },
+    "inverterStatus": {
+        "name": "Inverter Status",
+        "icon": "mdi:check-circle",
+        "device_class": None,
+        "state_class": None,
+        "unit": None,
     }
 }
 
@@ -337,7 +344,8 @@ ENDPOINTS = {
     "plant_statistics": "/monitor/home/getPlantStatisticsData",
     "plant_overview": "/monitor/home/getPlantGridOverviewInfo",
     "energy_flow": "/monitor/home/getDeviceEneryFlowData",
-    "raw_data": "/monitor/deviceData/findRawdataPageList"
+    "raw_data": "/monitor/deviceData/findRawdataPageList",
+    "device_alarms": "/alarm/device/userAlarmPage"
 }
 
 # Battery sensor definitions for individual batteries
