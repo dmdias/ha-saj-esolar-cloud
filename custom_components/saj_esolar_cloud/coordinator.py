@@ -71,10 +71,15 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
 
                 # Get all data for this plant
                 plant_details = await self._get_plant_details_for_plant(plant_uid)
+                _LOGGER.warning(f"plant_details {plant_details}")
                 device_list = await self._get_device_list_for_plant(plant_uid)
+                _LOGGER.warning(f"device_list {device_list}")
                 battery_list = await self._get_battery_list_for_plant(plant_uid)
+                _LOGGER.warning(f"battery_list {battery_list}")
                 plant_statistics = await self._get_plant_statistics_for_plant(plant_uid)
+                _LOGGER.warning(f"plant_statistics {plant_statistics}")
                 energy_flow = await self._get_energy_flow_for_plant(plant_uid)
+                _LOGGER.warning(f"energy_flow {energy_flow}")
 
                 # Get battery system info for this plant
                 battery_info = await self._get_battery_info_for_plant(plant_uid)
