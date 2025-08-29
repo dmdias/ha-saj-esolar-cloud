@@ -307,6 +307,93 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
                         return float(temp_str.rstrip("℃"))
                 return 0
 
+            # Device Info Sensors - map from device_info endpoint
+            elif self._sensor_key in [
+                "deviceModel", "firmwareVersion", "hardwareVersion", "deviceSerialNumber",
+                "installationDate", "dcInputVoltage1", "dcInputVoltage2", "dcInputCurrent1",
+                "dcInputCurrent2", "dcInputPower1", "dcInputPower2", "acOutputVoltage",
+                "acOutputCurrent", "acOutputFrequency", "inverterTemperature", "deviceEfficiency",
+                "powerFactor", "gridVoltageR", "gridVoltageS", "gridVoltageT", "gridCurrentR",
+                "gridCurrentS", "gridCurrentT", "insulationResistance", "workingMode",
+                "errorCode", "warningCode"
+            ]:
+                device_info = plant_data.get("device_info", {}).get("data", {})
+                
+                # Map common device info fields (will need to be updated based on actual API response)
+                if self._sensor_key == "deviceModel":
+                    return device_info.get("deviceModel", device_info.get("model", "Unknown"))
+                elif self._sensor_key == "firmwareVersion":
+                    return device_info.get("firmwareVersion", device_info.get("swVersion", "Unknown"))
+                elif self._sensor_key == "hardwareVersion":
+                    return device_info.get("hardwareVersion", device_info.get("hwVersion", "Unknown"))
+                elif self._sensor_key == "deviceSerialNumber":
+                    return device_info.get("deviceSn", device_info.get("serialNumber", "Unknown"))
+                elif self._sensor_key == "installationDate":
+                    install_date = device_info.get("installationDate", device_info.get("installDate", ""))
+                    if install_date:
+                        try:
+                            naive_dt = datetime.strptime(install_date, "%Y-%m-%d")
+                            return dt_util.as_utc(naive_dt)
+                        except ValueError:
+                            try:
+                                naive_dt = datetime.strptime(install_date, "%d/%m/%Y")
+                                return dt_util.as_utc(naive_dt)
+                            except ValueError:
+                                return None
+                    return None
+                elif self._sensor_key == "dcInputVoltage1":
+                    return float(device_info.get("dcVoltage1", device_info.get("pv1Voltage", 0)))
+                elif self._sensor_key == "dcInputVoltage2":
+                    return float(device_info.get("dcVoltage2", device_info.get("pv2Voltage", 0)))
+                elif self._sensor_key == "dcInputCurrent1":
+                    return float(device_info.get("dcCurrent1", device_info.get("pv1Current", 0)))
+                elif self._sensor_key == "dcInputCurrent2":
+                    return float(device_info.get("dcCurrent2", device_info.get("pv2Current", 0)))
+                elif self._sensor_key == "dcInputPower1":
+                    return float(device_info.get("dcPower1", device_info.get("pv1Power", 0)))
+                elif self._sensor_key == "dcInputPower2":
+                    return float(device_info.get("dcPower2", device_info.get("pv2Power", 0)))
+                elif self._sensor_key == "acOutputVoltage":
+                    return float(device_info.get("acVoltage", device_info.get("outputVoltage", 0)))
+                elif self._sensor_key == "acOutputCurrent":
+                    return float(device_info.get("acCurrent", device_info.get("outputCurrent", 0)))
+                elif self._sensor_key == "acOutputFrequency":
+                    return float(device_info.get("acFrequency", device_info.get("frequency", 0)))
+                elif self._sensor_key == "inverterTemperature":
+                    temp = device_info.get("temperature", device_info.get("deviceTemperature", 0))
+                    if isinstance(temp, str) and "℃" in temp:
+                        return float(temp.rstrip("℃"))
+                    return float(temp)
+                elif self._sensor_key == "deviceEfficiency":
+                    eff = device_info.get("efficiency", 0)
+                    if isinstance(eff, str) and "%" in eff:
+                        return float(eff.rstrip("%"))
+                    return float(eff)
+                elif self._sensor_key == "powerFactor":
+                    return float(device_info.get("powerFactor", 0))
+                elif self._sensor_key == "gridVoltageR":
+                    return float(device_info.get("gridVoltageR", device_info.get("gridVoltage1", 0)))
+                elif self._sensor_key == "gridVoltageS":
+                    return float(device_info.get("gridVoltageS", device_info.get("gridVoltage2", 0)))
+                elif self._sensor_key == "gridVoltageT":
+                    return float(device_info.get("gridVoltageT", device_info.get("gridVoltage3", 0)))
+                elif self._sensor_key == "gridCurrentR":
+                    return float(device_info.get("gridCurrentR", device_info.get("gridCurrent1", 0)))
+                elif self._sensor_key == "gridCurrentS":
+                    return float(device_info.get("gridCurrentS", device_info.get("gridCurrent2", 0)))
+                elif self._sensor_key == "gridCurrentT":
+                    return float(device_info.get("gridCurrentT", device_info.get("gridCurrent3", 0)))
+                elif self._sensor_key == "insulationResistance":
+                    return float(device_info.get("insulationResistance", device_info.get("insResistance", 0)))
+                elif self._sensor_key == "workingMode":
+                    return device_info.get("workingMode", device_info.get("operationMode", "Unknown"))
+                elif self._sensor_key == "errorCode":
+                    return device_info.get("errorCode", device_info.get("faultCode", "None"))
+                elif self._sensor_key == "warningCode":
+                    return device_info.get("warningCode", device_info.get("alertCode", "None"))
+                
+                return 0
+
             # For sensors we haven't mapped yet, return 0 or appropriate default
             return 0
 

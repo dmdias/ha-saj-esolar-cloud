@@ -74,6 +74,8 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.warning(f"plant_details {plant_details}")
                 device_list = await self._get_device_list_for_plant(plant_uid)
                 _LOGGER.warning(f"device_list {device_list}")
+                device_info = await self._get_device_info_for_plant(plant_uid)
+                _LOGGER.warning(f"device_info {device_info}")
                 battery_list = await self._get_battery_list_for_plant(plant_uid)
                 _LOGGER.warning(f"battery_list {battery_list}")
                 plant_statistics = await self._get_plant_statistics_for_plant(plant_uid)
@@ -91,6 +93,7 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
                     "plant_info": plant_info,
                     "plant_details": plant_details,
                     "device_list": device_list,
+                    "device_info": device_info,
                     "battery_list": battery_list,
                     "plant_statistics": plant_statistics,
                     "energy_flow": energy_flow,
@@ -216,6 +219,38 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
         ) as resp:
             if resp.status != 200:
                 raise UpdateFailed(f"Failed to get device list: {resp.status}")
+            return await resp.json()
+
+    async def _get_device_info_for_plant(self, plant_uid: str) -> dict[str, Any]:
+        """Get detailed device info for specific plant."""
+        # Get device list first to get deviceSn
+        device_list = await self._get_device_list_for_plant(plant_uid)
+        device_sn = None
+        if device_list.get("data", {}).get("list"):
+            device_sn = device_list["data"]["list"][0]["deviceSn"]
+
+        if not device_sn:
+            raise UpdateFailed(f"No device found for plant {plant_uid}")
+
+        data = {
+            "deviceSn": device_sn,
+            'appProjectName': 'elekeeper',
+            'clientDate': datetime.now().strftime("%Y-%m-%d"),
+            'lang': 'en',
+            'timeStamp': int(time.time() * 1000),
+            'random': generatkey(32),
+            'clientId': 'esolar-monitor-admin',
+        }
+
+        signed = calc_signature(data)
+
+        async with self.session.get(
+            f"{self.base_url}{ENDPOINTS['device_info']}",
+            params=signed,
+            headers={'Authorization': self.auth_token},
+        ) as resp:
+            if resp.status != 200:
+                raise UpdateFailed(f"Failed to get device info: {resp.status}")
             return await resp.json()
 
     async def _get_battery_list_for_plant(self, plant_uid: str) -> dict[str, Any]:
