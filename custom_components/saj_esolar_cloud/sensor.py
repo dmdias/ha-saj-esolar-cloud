@@ -1,6 +1,7 @@
 """SAJ eSolar sensor platform."""
 from __future__ import annotations
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from typing import Any, cast
 
@@ -126,12 +127,18 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
         self._attr_unique_id = f"{DOMAIN}_{plant_uid}_{sensor_key}"
         self._attr_icon = sensor_config["icon"]
 
-        # Create plant-specific device info
+        # Create plant-specific device info. Use the model reported by the
+        # device list (e.g. R5-xxK-xxxx) when available, falling back to "H1".
+        plant_data = coordinator.data.get(plant_uid, {})
+        device_list = plant_data.get("device_list", {}).get("data", {}).get("list", [])
+        device_data = device_list[0] if device_list else {}
+        device_model = device_data.get("deviceModel") or "H1"
+
         self._attr_device_info = {
             "identifiers": {(DOMAIN, plant_uid)},
             "name": plant_name,
             "manufacturer": "SAJ",
-            "model": "H1",
+            "model": device_model,
         }
 
         # Set device class from mapping
@@ -187,7 +194,23 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
             elif self._sensor_key == "totalReduceCo2":
                 return float(plant_stats.get("totalReduceCo2", 0))
             elif self._sensor_key == "lastUploadTime":
-                # Parse the timestamp string to datetime object with timezone
+                # Prefer the latest energy flow update time (real last update).
+                # Fall back to the inverter's firstOnlineTime if it is missing.
+                update_time = energy_flow.get("updateDate", "")
+                if update_time:
+                    try:
+                        naive_dt = datetime.strptime(update_time, "%Y-%m-%d %H:%M:%S")
+                        tz_name = plant_details.get("timeZone") or plant_details.get("timezone")
+                        if tz_name:
+                            try:
+                                return dt_util.as_utc(naive_dt.replace(tzinfo=ZoneInfo(tz_name)))
+                            except Exception:
+                                pass
+                        return dt_util.as_utc(naive_dt)
+                    except ValueError:
+                        pass
+
+                # Fallback to original behaviour (first online time)
                 timestamp = device_data.get("firstOnlineTime", "")
                 if timestamp:
                     try:
@@ -197,8 +220,19 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
                         return None
                 return None
             elif self._sensor_key == "selfUseRate":
-                # This might need to be calculated from plant data
-                return float(plant_data.get("selfUseRate", "0").rstrip("%"))
+                # Calculate PV self-use rate from today's PV generation and grid
+                # export. Prefer plant statistics, fall back to the inverter's
+                # own today energy so it also works on H1 setups.
+                today_pv_energy = float(plant_stats.get("todayPvEnergy", 0) or 0)
+                if today_pv_energy <= 0:
+                    today_pv_energy = float(device_data.get("todayEnergy", 0) or 0)
+                today_sell_energy = float(plant_stats.get("todaySellEnergy", 0) or 0)
+
+                if today_pv_energy > 0:
+                    self_used_energy = max(today_pv_energy - today_sell_energy, 0)
+                    return round((self_used_energy / today_pv_energy) * 100, 1)
+
+                return 0
 
             # Device Power Sensors - map from energy flow and device data
             elif self._sensor_key == "pvPower":

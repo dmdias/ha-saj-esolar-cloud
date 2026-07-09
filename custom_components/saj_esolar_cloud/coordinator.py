@@ -239,20 +239,43 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
                 raise UpdateFailed(f"Failed to get battery list: {resp.status}")
             return await resp.json()
 
-    async def _get_plant_statistics_for_plant(self, plant_uid: str) -> dict[str, Any]:
-        """Get plant statistics for specific plant."""
-        # Get device list first to get deviceSn
+    async def _resolve_query_device(self, plant_uid: str) -> dict[str, str]:
+        """Resolve the API query identifier for a plant.
+
+        Most inverters (e.g. H1) are queried by their inverter serial
+        (``deviceSn``). R5 inverters paired with a SEC-C smart meter report
+        ``queryDeviceDataType == 2`` and must be queried by the EMS module
+        serial (``emsSn``) instead, otherwise load/grid values return 0.
+        See ``elekeeper.prepare_data_for_query`` for the reference logic.
+        """
         device_list = await self._get_device_list_for_plant(plant_uid)
         device_sn = None
         if device_list.get("data", {}).get("list"):
-            device_sn = device_list["data"]["list"][0]["deviceSn"]
+            device_sn = device_list["data"]["list"][0].get("deviceSn")
 
-        if not device_sn:
-            raise UpdateFailed(f"No device found for plant {plant_uid}")
+        plant_details = await self._get_plant_details_for_plant(plant_uid)
+        plant = plant_details.get("data", {})
+        module_sn_list = plant.get("moduleSnList") or []
+        ems_sn = module_sn_list[0] if module_sn_list else None
+
+        # Only R5 + SEC-C (queryDeviceDataType == 2) queries by emsSn.
+        # Everything else keeps the existing deviceSn behaviour.
+        if plant.get("queryDeviceDataType", 1) == 2 and ems_sn:
+            return {"emsSn": ems_sn}
+        if device_sn:
+            return {"deviceSn": device_sn}
+        if ems_sn:
+            return {"emsSn": ems_sn}
+
+        raise UpdateFailed(f"No device or EMS module found for plant {plant_uid}")
+
+    async def _get_plant_statistics_for_plant(self, plant_uid: str) -> dict[str, Any]:
+        """Get plant statistics for specific plant."""
+        query_device = await self._resolve_query_device(plant_uid)
 
         data = {
             "plantUid": plant_uid,
-            "deviceSn": device_sn,
+            **query_device,
             'appProjectName': 'elekeeper',
             'clientDate': datetime.now().strftime("%Y-%m-%d"),
             'lang': 'en',
@@ -274,18 +297,11 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def _get_energy_flow_for_plant(self, plant_uid: str) -> dict[str, Any]:
         """Get energy flow for specific plant."""
-        # Get device list first to get deviceSn
-        device_list = await self._get_device_list_for_plant(plant_uid)
-        device_sn = None
-        if device_list.get("data", {}).get("list"):
-            device_sn = device_list["data"]["list"][0]["deviceSn"]
-
-        if not device_sn:
-            raise UpdateFailed(f"No device found for plant {plant_uid}")
+        query_device = await self._resolve_query_device(plant_uid)
 
         data = {
             "plantUid": plant_uid,
-            "deviceSn": device_sn,
+            **query_device,
             'appProjectName': 'elekeeper',
             'clientDate': datetime.now().strftime("%Y-%m-%d"),
             'lang': 'en',
