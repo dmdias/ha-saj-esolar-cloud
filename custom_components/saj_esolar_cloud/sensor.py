@@ -25,7 +25,14 @@ from homeassistant.helpers.update_coordinator import (
 )
 from homeassistant.util import dt as dt_util
 
-from .const import DEVICE_INFO, DIRECTION_STATES, BATTERY_STATES, DOMAIN, H1_SENSORS
+from .const import (
+    BATTERY_STATES,
+    DEVICE_INFO,
+    DIRECTION_STATES,
+    DOMAIN,
+    H1_SENSORS,
+    INVERTER_SENSOR_KEYS,
+)
 from .coordinator import SAJeSolarDataUpdateCoordinator
 
 # Device class mapping
@@ -44,6 +51,16 @@ STATE_CLASS_MAP = {
     "total_increasing": SensorStateClass.TOTAL_INCREASING,
     "total": SensorStateClass.TOTAL,
 }
+
+def _inverter_label(device_entry: dict[str, Any], device_sn: str) -> str:
+    """Human readable name for one inverter of a multi-inverter plant."""
+    device_info = device_entry.get("device_info", {}) or {}
+    for key in ("deviceName", "aliasName", "deviceModel"):
+        name = device_info.get(key)
+        if name:
+            return str(name)
+    return device_sn
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -65,7 +82,8 @@ async def async_setup_entry(
         plant_info = plant_data.get("plant_info", {})
         plant_name = plant_info.get("plantName", plant_uid)
 
-        # Create sensor entities for each defined H1 sensor for this plant
+        # Plant-level sensors. With several inverters under one plant these
+        # report the aggregate built by the coordinator.
         for sensor_key, sensor_config in H1_SENSORS.items():
             entities.append(
                 SAJeSolarSensor(
@@ -76,6 +94,30 @@ async def async_setup_entry(
                     plant_name=plant_name,
                 )
             )
+
+        # A plant can group several inverters. Expose each one as its own
+        # device so the individual contributions stay visible; a single
+        # inverter plant keeps only the plant-level entities it always had.
+        devices = plant_data.get("devices", {})
+        if len(devices) > 1:
+            for device_sn, device_entry in devices.items():
+                device_label = _inverter_label(device_entry, device_sn)
+
+                for sensor_key in INVERTER_SENSOR_KEYS:
+                    sensor_config = H1_SENSORS.get(sensor_key)
+                    if not sensor_config:
+                        continue
+                    entities.append(
+                        SAJeSolarSensor(
+                            coordinator=coordinator,
+                            sensor_key=sensor_key,
+                            sensor_config=sensor_config,
+                            plant_uid=plant_uid,
+                            plant_name=plant_name,
+                            device_sn=device_sn,
+                            device_label=device_label,
+                        )
+                    )
 
         # Create individual battery devices and sensors
         battery_list = plant_data.get("battery_list", {}).get("data", {}).get("list", [])
@@ -113,33 +155,60 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
         sensor_config: dict[str, Any],
         plant_uid: str,
         plant_name: str,
+        device_sn: str | None = None,
+        device_label: str | None = None,
     ) -> None:
-        """Initialize the sensor."""
+        """Initialize the sensor.
+
+        With ``device_sn`` unset the sensor reports the whole plant (the sum
+        of every inverter); with it set it reports that one inverter.
+        """
         super().__init__(coordinator)
 
         self._sensor_key = sensor_key
         self._config = sensor_config
         self._plant_uid = plant_uid
         self._plant_name = plant_name
+        self._device_sn = device_sn
 
-        # Set up entity properties with plant-specific naming
-        self._attr_name = f"{plant_name} {sensor_config['name']}"
-        self._attr_unique_id = f"{DOMAIN}_{plant_uid}_{sensor_key}"
-        self._attr_icon = sensor_config["icon"]
-
-        # Create plant-specific device info. Use the model reported by the
-        # device list (e.g. R5-xxK-xxxx) when available, falling back to "H1".
         plant_data = coordinator.data.get(plant_uid, {})
-        device_list = plant_data.get("device_list", {}).get("data", {}).get("list", [])
-        device_data = device_list[0] if device_list else {}
-        device_model = device_data.get("deviceModel") or "H1"
 
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, plant_uid)},
-            "name": plant_name,
-            "manufacturer": "SAJ",
-            "model": device_model,
-        }
+        if device_sn is None:
+            # Set up entity properties with plant-specific naming
+            self._attr_name = f"{plant_name} {sensor_config['name']}"
+            self._attr_unique_id = f"{DOMAIN}_{plant_uid}_{sensor_key}"
+
+            # Create plant-specific device info. Use the model reported by the
+            # device list (e.g. R5-xxK-xxxx) when available, falling back to "H1".
+            device_list = plant_data.get("device_list", {}).get("data", {}).get("list", [])
+            device_data = device_list[0] if device_list else {}
+            device_model = device_data.get("deviceModel") or "H1"
+
+            self._attr_device_info = {
+                "identifiers": {(DOMAIN, plant_uid)},
+                "name": plant_name,
+                "manufacturer": "SAJ",
+                "model": device_model,
+            }
+        else:
+            inverter_name = f"{plant_name} {device_label or device_sn}"
+            self._attr_name = f"{inverter_name} {sensor_config['name']}"
+            self._attr_unique_id = f"{DOMAIN}_{plant_uid}_{device_sn}_{sensor_key}"
+
+            device_data = (
+                plant_data.get("devices", {}).get(device_sn, {}).get("device_info", {})
+            )
+
+            self._attr_device_info = {
+                "identifiers": {(DOMAIN, f"{plant_uid}_{device_sn}")},
+                "name": inverter_name,
+                "manufacturer": "SAJ",
+                "model": device_data.get("deviceModel") or "H1",
+                "serial_number": device_sn,
+                "via_device": (DOMAIN, plant_uid),
+            }
+
+        self._attr_icon = sensor_config["icon"]
 
         # Set device class from mapping
         if sensor_config["device_class"]:
@@ -153,23 +222,44 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
         if sensor_config["unit"]:
             self._attr_native_unit_of_measurement = sensor_config["unit"]
 
+    def _sources(self) -> tuple[dict[str, Any], ...]:
+        """Return the data buckets this sensor reads from.
+
+        Plant-level sensors read the coordinator's aggregate (every inverter
+        summed); per-inverter sensors read that one device's own responses.
+        """
+        plant_data = self.coordinator.data.get(self._plant_uid, {}) or {}
+
+        if self._device_sn is None:
+            aggregate = plant_data.get("aggregate", {}) or {}
+            return (
+                plant_data,
+                aggregate.get("device", {}) or {},
+                aggregate.get("energy_flow", {}) or {},
+                aggregate.get("battery_info", {}) or {},
+                (plant_data.get("device_alarms", {}) or {}).get("data", {}) or {},
+            )
+
+        device_entry = (plant_data.get("devices", {}) or {}).get(self._device_sn, {}) or {}
+        return (
+            plant_data,
+            device_entry.get("device_info", {}) or {},
+            (device_entry.get("energy_flow", {}) or {}).get("data", {}) or {},
+            (device_entry.get("battery_info", {}) or {}).get("data", {}) or {},
+            (device_entry.get("device_alarms", {}) or {}).get("data", {}) or {},
+        )
+
     @property
     def native_value(self) -> StateType:
         """Return the sensor value."""
         try:
-            # Get data for this specific plant
-            plant_data = self.coordinator.data.get(self._plant_uid, {})
+            plant_data, device_data, energy_flow, battery_info, device_alarms = (
+                self._sources()
+            )
 
-            # Get plant and device data from plant-specific structure
+            # Plant-scoped data, shared by every inverter of the plant
             plant_details = plant_data.get("plant_details", {}).get("data", {})
-            device_list = plant_data.get("device_list", {}).get("data", {}).get("list", [])
-            device_data = device_list[0] if device_list else {}
-
-            # Get additional data sources for this plant
             plant_stats = plant_data.get("plant_statistics", {}).get("data", {})
-            energy_flow = plant_data.get("energy_flow", {}).get("data", {})
-            battery_info = plant_data.get("battery_info", {}).get("data", {})
-            device_alarms = plant_data.get("device_alarms", {}).get("data", {})
 
             # Plant Detail Sensors - map from new plant data structure
             if self._sensor_key == "nowPower":
@@ -289,6 +379,10 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
                 running_state = device_data.get("runningState", 0)
                 return "Yes" if int(running_state) == 1 else "No"
             elif self._sensor_key == "inverterStatus":
+                if self._device_sn is not None:
+                    # A single inverter answers for itself: its own alarm list.
+                    return "Alarm" if device_alarms.get("list") else "OK"
+
                 # Inverter status based on deviceStatus from plant statistics
                 device_status = plant_stats.get("deviceStatus", 2)
 
@@ -352,9 +446,7 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
         """Return additional state attributes for main plant sensors."""
         if self._sensor_key == "operatingMode":
             try:
-                # Get data for this specific plant
-                plant_data = self.coordinator.data.get(self._plant_uid, {})
-                battery_info = plant_data.get("battery_info", {}).get("data", {})
+                _, _, _, battery_info, _ = self._sources()
 
                 # Add system-level attributes to operating mode sensor
                 attributes = {}
@@ -374,12 +466,13 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
 
         elif self._sensor_key == "inverterStatus":
             try:
-                # Get data for this specific plant
-                plant_data = self.coordinator.data.get(self._plant_uid, {})
+                plant_data, _, _, _, device_alarms = self._sources()
                 plant_stats = plant_data.get("plant_statistics", {}).get("data", {})
-                device_alarms = plant_data.get("device_alarms", {}).get("data", {})
 
-                device_status = plant_stats.get("deviceStatus", 2)
+                if self._device_sn is not None:
+                    device_status = 3 if device_alarms.get("list") else 2
+                else:
+                    device_status = plant_stats.get("deviceStatus", 2)
                 attributes = {}
 
                 if device_status == 3:
@@ -413,14 +506,12 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
             return False
 
         try:
-            # Check if device is online using plant-specific data structure
-            plant_data = self.coordinator.data.get(self._plant_uid, {})
-            device_list = plant_data.get("device_list", {}).get("data", {}).get("list", [])
-            if device_list:
-                device_data = device_list[0]
-                running_state = device_data.get("runningState", 0)
-                return bool(int(running_state))
-            return False
+            # For the plant this is the aggregate state (online when at least
+            # one inverter is), for an inverter sensor it is its own state.
+            _, device_data, _, _, _ = self._sources()
+            if not device_data:
+                return False
+            return bool(int(device_data.get("runningState", 0) or 0))
         except (KeyError, TypeError, ValueError):
             return False
 

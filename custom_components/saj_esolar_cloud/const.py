@@ -435,3 +435,35 @@ BATTERY_SENSORS = {
         "unit": "kWh",
     },
 }
+
+# Sensors that describe a single inverter rather than the whole plant.
+# When a plant groups several inverters these are also exposed per device,
+# on top of the plant-wide aggregate. Keys index into H1_SENSORS.
+INVERTER_SENSOR_KEYS = (
+    "nowPower",
+    "pvPower",
+    "todayElectricity",
+    "monthElectricity",
+    "yearElectricity",
+    "totalElectricity",
+    "gridPower",
+    "gridPowerAbsolute",
+    "batteryPower",
+    "batteryPowerAbsolute",
+    "outPower",
+    "totalLoadPower",
+    "batCapcity",
+    "usableBatCapacity",
+    "batCurr",
+    "batVoltage",
+    "batEnergyPercent",
+    "batteryWorkTime",
+    "operatingMode",
+    "pvDirection",
+    "gridDirection",
+    "batteryDirection",
+    "outPutDirection",
+    "isOnline",
+    "inverterStatus",
+    "lastUploadTime",
+)

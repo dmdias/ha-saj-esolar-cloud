@@ -14,6 +14,7 @@ It started as a fork of [SAJeSolar](https://github.com/djansen1987/SAJeSolar) by
 - 🎛️ **Multi-Plant Support**: Monitor multiple solar installations from a single integration
 - 🔋 **Individual Battery Monitoring**: Each battery appears as a separate device with comprehensive metrics
 - 🏠 **System-Level Overview**: Inverter device provides aggregated system data
+- 🔌 **Multi-Inverter Plants**: Plants grouping several inverters are summed at plant level, with each inverter also exposed as its own device
 - 🌍 **Multi-Region Support**: EU, India, and China regions
 - 🌐 **Bilingual Support**: English and Catalan translations
 - 🔄 **Real-Time Data**: Automatic updates every 5 minutes
@@ -27,6 +28,13 @@ It started as a fork of [SAJeSolar](https://github.com/djansen1987/SAJeSolar) by
 - Operating modes and system status
 - Environmental impact metrics
 - Grid interaction and energy flows
+
+### ⚡ **Individual Inverter Devices** (e.g., "P00266-23 Inverter 1", "P00266-23 Inverter 2")
+**Created only when a plant groups more than one inverter:**
+- Per-inverter power, generation and grid/battery flows
+- Per-inverter online state and alarm status
+- The plant device keeps reporting the sum of all inverters, so existing
+  entities and Energy Dashboard statistics are unaffected
 
 ### 🔋 **Individual Battery Devices** (e.g., "P00266-23 Battery 1", "P00266-23 Battery 2")
 **Per-battery detailed monitoring:**
@@ -169,6 +177,12 @@ It started as a fork of [SAJeSolar](https://github.com/djansen1987/SAJeSolar) by
 - Verify credentials are correct
 - Check if your region is properly selected
 - Ensure your inverter is online in the eSolar portal
+
+**Only one inverter showing on a multi-inverter plant:**
+- Per-inverter devices are created at setup; reload the integration
+  (Settings → Devices & Services → SAJ eSolar → Reload) after adding an inverter
+- Confirm both inverters are listed under the same plant in the eSolar portal
+- The plant-level "Current Power" reports the sum of all inverters
 
 **Missing batteries:**
 - Battery devices appear automatically if detected
