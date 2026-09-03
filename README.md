@@ -1,10 +1,10 @@
-# 🌞 SAJ eSolar Cloud Integration for Home Assistant
+# 🌞 SAJ eSolar Cloud (DMDIAS build) Integration for Home Assistant
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
 [![GitHub release](https://img.shields.io/github/release/elboletaire/ha-saj-esolar-cloud.svg)](https://github.com/elboletaire/ha-saj-esolar-cloud/releases)
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-A comprehensive Home Assistant integration for SAJ eSolar cloud service, providing detailed monitoring of H1 inverters with battery storage systems.
+A comprehensive Home Assistant integration for SAJ eSolar Cloud (DMDIAS build) service, providing detailed monitoring of H1 inverters with battery storage systems.
 
 This integration is a complete rewrite focused on H1 inverters with battery storage, using the modern Elekeeper cloud API. The "Cloud" suffix denotes its cloud-based nature and distinguishes it from other SAJ eSolar integrations.
 It started as a fork of [SAJeSolar](https://github.com/djansen1987/SAJeSolar) by @djansen1987, and has since been fully rewritten for current API behavior and hardware targets, so the current codebase no longer shares code with the original project.
@@ -133,7 +133,7 @@ It started as a fork of [SAJeSolar](https://github.com/djansen1987/SAJeSolar) by
 5. Add this repository URL: `https://github.com/elboletaire/ha-saj-esolar-cloud`
 6. Select category: "Integration"
 7. Click "Add"
-8. Find "SAJ eSolar Cloud" in the integrations list and install it
+8. Find "SAJ eSolar Cloud (DMDIAS build)" in the integrations list and install it
 9. Restart Home Assistant
 
 ### Manual Installation
@@ -147,7 +147,7 @@ It started as a fork of [SAJeSolar](https://github.com/djansen1987/SAJeSolar) by
 
 1. Go to Home Assistant's **Settings** > **Devices & Services**
 2. Click the **"+ Add Integration"** button
-3. Search for **"SAJ eSolar Cloud"**
+3. Search for **"SAJ eSolar Cloud (DMDIAS build)"**
 4. Enter your eSolar Portal credentials:
    - **Username**: Your eSolar Portal username
    - **Password**: Your eSolar Portal password

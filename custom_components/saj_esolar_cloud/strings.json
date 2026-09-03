@@ -2,8 +2,8 @@
     "config": {
         "step": {
             "user": {
-                "title": "SAJ eSolar Cloud",
-                "description": "Set up SAJ eSolar Cloud integration. You need your eSolar Portal credentials.",
+                "title": "SAJ eSolar Cloud (DMDIAS build)",
+                "description": "Set up SAJ eSolar Cloud (DMDIAS build) integration. You need your eSolar Portal credentials.",
                 "data": {
                     "username": "Username",
                     "password": "Password"

@@ -1,4 +1,4 @@
-"""Constants for the SAJ eSolar Cloud integration."""
+"""Constants for the SAJ eSolar Cloud (DMDIAS build) integration."""
 from typing import Final
 
 DOMAIN: Final = "saj_esolar_cloud"

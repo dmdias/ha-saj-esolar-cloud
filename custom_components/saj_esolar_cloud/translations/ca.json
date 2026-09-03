@@ -2,8 +2,8 @@
     "config": {
         "step": {
             "user": {
-                "title": "SAJ eSolar Cloud",
-                "description": "Configura la integració SAJ eSolar Cloud. Necessites les credencials del Portal eSolar.",
+                "title": "SAJ eSolar Cloud (DMDIAS build)",
+                "description": "Configura la integració SAJ eSolar Cloud (DMDIAS build). Necessites les credencials del Portal eSolar.",
                 "data": {
                     "username": "Nom d'usuari",
                     "password": "Contrasenya",
@@ -40,8 +40,8 @@
     "options": {
         "step": {
             "init": {
-                "title": "Opcions de SAJ eSolar Cloud",
-                "description": "Configura les opcions per a la integració SAJ eSolar Cloud.",
+                "title": "Opcions de SAJ eSolar Cloud (DMDIAS build)",
+                "description": "Configura les opcions per a la integració SAJ eSolar Cloud (DMDIAS build).",
                 "data": {
                     "monitored_plants": "Plantes a Monitoritzar"
                 }

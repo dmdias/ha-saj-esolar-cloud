@@ -1,6 +1,6 @@
 {
   "domain": "saj_esolar_cloud",
-  "name": "SAJ eSolar Cloud",
+  "name": "SAJ eSolar Cloud (DMDIAS build)",
   "version": "1.0.0",
   "config_flow": true,
   "documentation": "https://github.com/elboletaire/ha-saj-esolar-cloud/",
