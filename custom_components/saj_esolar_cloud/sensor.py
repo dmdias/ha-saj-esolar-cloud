@@ -27,6 +27,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     BATTERY_STATES,
+    DEVICE_DETAIL_FIELDS,
     DEVICE_INFO,
     DIRECTION_STATES,
     DOMAIN,
@@ -249,6 +250,24 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
             (device_entry.get("device_alarms", {}) or {}).get("data", {}) or {},
         )
 
+    def _detail_value(self) -> float | None:
+        """Resolve a device-detail sensor (string and AC voltages).
+
+        The plant aggregate holds values already resolved and averaged by the
+        coordinator; a per-inverter sensor resolves from that inverter's own
+        device info response.
+        """
+        plant_data = self.coordinator.data.get(self._plant_uid, {}) or {}
+
+        if self._device_sn is None:
+            aggregate = plant_data.get("aggregate", {}) or {}
+            return (aggregate.get("device_detail") or {}).get(self._sensor_key)
+
+        device_entry = (plant_data.get("devices", {}) or {}).get(self._device_sn, {}) or {}
+        return SAJeSolarDataUpdateCoordinator.detail_value(
+            device_entry.get("device_detail") or {}, self._sensor_key
+        )
+
     @property
     def native_value(self) -> StateType:
         """Return the sensor value."""
@@ -424,6 +443,10 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
             elif self._sensor_key == "outPutDirection":
                 value = int(energy_flow.get("outPutDirection", 0))
                 return DIRECTION_STATES.get(value, f"Unknown ({value})")
+
+            # String and AC voltages from the per-inverter device info
+            elif self._sensor_key in DEVICE_DETAIL_FIELDS:
+                return self._detail_value()
 
             # Battery Info from battery list
             elif self._sensor_key in ["batVoltage", "batTemperature"]:

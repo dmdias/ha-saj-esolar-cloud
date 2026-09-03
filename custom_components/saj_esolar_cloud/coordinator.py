@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta
 import logging
 from typing import Any
+import re
 import time
 
 import aiohttp
@@ -9,10 +10,58 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.exceptions import ConfigEntryAuthFailed
 
-from .const import DOMAIN, ENDPOINTS, UPDATE_INTERVAL, REGIONS
+from .const import DEVICE_DETAIL_FIELDS, DOMAIN, ENDPOINTS, UPDATE_INTERVAL, REGIONS
 from .elekeeper import calc_signature, encrypt, generatkey
 
 _LOGGER = logging.getLogger(__name__)
+
+# Keys already reported as unresolvable, so the warning is logged once per key
+# instead of on every update.
+_WARNED_FIELDS: set[str] = set()
+
+
+def _normalise(key: str) -> str:
+    """Reduce a field name to letters and digits for tolerant comparison."""
+    return "".join(char for char in str(key).lower() if char.isalnum())
+
+
+def to_float(value: Any) -> float | None:
+    """Parse a number that the API may have wrapped in units or spaces."""
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    text = str(value).strip()
+    if not text:
+        return None
+
+    match = re.match(r"[-+]?\d*\.?\d+", text)
+    if not match:
+        return None
+    try:
+        return float(match.group())
+    except ValueError:
+        return None
+
+
+def resolve_field(source: dict[str, Any], candidates: tuple[str, ...]) -> float | None:
+    """Read the first candidate field present in an API response.
+
+    SAJ spells these fields differently across inverter families, so the
+    candidates are matched ignoring case and separators (``pv1Volt`` also
+    matches ``PV1_VOLT``). Returns ``None`` when nothing matches, which the
+    sensor reports as unavailable rather than as a misleading zero.
+    """
+    if not source:
+        return None
+
+    normalised = {_normalise(key): value for key, value in source.items()}
+    for candidate in candidates:
+        if (value := to_float(normalised.get(_normalise(candidate)))) is not None:
+            return value
+    return None
+
 
 class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching data from the SAJ eSolar API."""
@@ -105,6 +154,7 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
             energy_flow = await self._get_energy_flow(plant_uid, query_device)
             battery_info = await self._get_battery_info(device.get("deviceSn"))
             device_alarms = await self._get_device_alarms(device.get("deviceSn"))
+            device_detail = await self._get_device_detail(device.get("deviceSn"))
 
             devices_data[device_sn] = {
                 "device_info": device,
@@ -113,6 +163,7 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
                 "energy_flow": energy_flow,
                 "battery_info": battery_info,
                 "device_alarms": device_alarms,
+                "device_detail": device_detail,
             }
 
         # Plant statistics are plant-scoped (they take plantUid); the device
@@ -190,6 +241,7 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
         battery_signed = 0.0
         soc_values: list[float] = []
         voltages: list[float] = []
+        detail_values: dict[str, list[float]] = {key: [] for key in DEVICE_DETAIL_FIELDS}
         work_times: list[float] = []
         pv_directions: list[int] = []
         out_directions: list[int] = []
@@ -202,6 +254,12 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
             device = device_data.get("device_info") or {}
             flow = (device_data.get("energy_flow") or {}).get("data") or {}
             battery = (device_data.get("battery_info") or {}).get("data") or {}
+            detail = device_data.get("device_detail") or {}
+
+            for key in detail_values:
+                value = SAJeSolarDataUpdateCoordinator.detail_value(detail, key)
+                if value is not None:
+                    detail_values[key].append(value)
 
             for key in device_agg:
                 device_agg[key] += _num(device, key)
@@ -296,10 +354,18 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
         battery_agg["userModeName"] = user_mode or "Unknown"
         battery_agg["updateDate"] = flow_agg["updateDate"]
 
+        # Voltages are levels, not quantities: averaging the inverters
+        # describes the plant, whereas summing them would be meaningless.
+        detail_agg = {
+            key: round(sum(values) / len(values), 1) if values else None
+            for key, values in detail_values.items()
+        }
+
         return {
             "device": device_agg,
             "energy_flow": flow_agg,
             "battery_info": battery_agg,
+            "device_detail": detail_agg,
         }
 
     async def _authenticate(self) -> None:
@@ -475,6 +541,54 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
             "Failed to get battery info",
             deviceSn=device_sn,
         )
+
+    async def _get_device_detail(self, device_sn: str | None) -> dict[str, Any]:
+        """Get the detailed per-inverter readings (string and AC voltages).
+
+        This endpoint only backs the extra diagnostic sensors, so a failure
+        here must not take down the rest of the integration: it is logged and
+        the affected sensors simply report unavailable.
+        """
+        if not device_sn:
+            return {}
+
+        try:
+            detail = await self._get(
+                "device_info",
+                "Failed to get device info",
+                deviceSn=device_sn,
+            )
+        except Exception as err:  # noqa: BLE001 - optional data, never fatal
+            _LOGGER.debug("Device detail unavailable for %s: %s", device_sn, err)
+            return {}
+
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            fields = sorted((detail.get("data") or {}).keys())
+            _LOGGER.debug("Device %s detail fields: %s", device_sn, fields)
+
+        return detail
+
+    @staticmethod
+    def detail_value(device_detail: dict[str, Any], sensor_key: str) -> float | None:
+        """Resolve one detail sensor from an inverter's device info response."""
+        candidates = DEVICE_DETAIL_FIELDS.get(sensor_key)
+        if not candidates:
+            return None
+
+        data = (device_detail or {}).get("data") or {}
+        value = resolve_field(data, candidates)
+
+        if value is None and data and sensor_key not in _WARNED_FIELDS:
+            _WARNED_FIELDS.add(sensor_key)
+            _LOGGER.warning(
+                "No field matching %s found in the device info response; "
+                "available fields: %s. Please report these so the mapping can "
+                "be corrected.",
+                sensor_key,
+                sorted(data.keys()),
+            )
+
+        return value
 
     async def _get_device_alarms(self, device_sn: str | None) -> dict[str, Any]:
         """Get device alarms for one inverter."""

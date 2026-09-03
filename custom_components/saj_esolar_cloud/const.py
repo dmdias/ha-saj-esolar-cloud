@@ -272,6 +272,34 @@ H1_SENSORS = {
         "state_class": "measurement",
         "unit": "°C",
     },
+    "pv1Voltage": {
+        "name": "PV1 Voltage",
+        "icon": "mdi:solar-panel",
+        "device_class": "voltage",
+        "state_class": "measurement",
+        "unit": "V",
+    },
+    "pv2Voltage": {
+        "name": "PV2 Voltage",
+        "icon": "mdi:solar-panel",
+        "device_class": "voltage",
+        "state_class": "measurement",
+        "unit": "V",
+    },
+    "inverterVoltage": {
+        "name": "Inverter Voltage",
+        "icon": "mdi:sine-wave",
+        "device_class": "voltage",
+        "state_class": "measurement",
+        "unit": "V",
+    },
+    "gridVoltage": {
+        "name": "Grid Voltage",
+        "icon": "mdi:transmission-tower",
+        "device_class": "voltage",
+        "state_class": "measurement",
+        "unit": "V",
+    },
     "pvDirection": {
         "name": "PV Direction",
         "icon": "mdi:solar-power",
@@ -457,6 +485,10 @@ INVERTER_SENSOR_KEYS = (
     "batCurr",
     "batVoltage",
     "batEnergyPercent",
+    "pv1Voltage",
+    "pv2Voltage",
+    "inverterVoltage",
+    "gridVoltage",
     "batteryWorkTime",
     "operatingMode",
     "pvDirection",
@@ -467,3 +499,29 @@ INVERTER_SENSOR_KEYS = (
     "inverterStatus",
     "lastUploadTime",
 )
+
+
+# Field names for the values read from the ``device_info`` endpoint
+# (``getOneDeviceInfo``). SAJ is not consistent about these across inverter
+# families and firmware, so each sensor lists the spellings seen in the wild,
+# tried in order. Lookup is case- and separator-insensitive, so "pv1Volt" also
+# matches "PV1_VOLT" or "pv1volt"; only genuinely different words need listing.
+# Run ``scripts/dump_device_fields.py`` to see what your own inverter reports.
+DEVICE_DETAIL_FIELDS = {
+    "pv1Voltage": (
+        "pv1Volt", "pv1Voltage", "pv1InputVolt", "dcVoltage1", "dcVolt1",
+        "vPv1", "pvVolt1", "inputVoltage1",
+    ),
+    "pv2Voltage": (
+        "pv2Volt", "pv2Voltage", "pv2InputVolt", "dcVoltage2", "dcVolt2",
+        "vPv2", "pvVolt2", "inputVoltage2",
+    ),
+    "inverterVoltage": (
+        "invVolt", "inverterVoltage", "acOutputVoltage", "outputVoltage",
+        "acVoltage", "invVoltR", "rInvVolt", "vInv",
+    ),
+    "gridVoltage": (
+        "gridVolt", "gridVoltage", "sysGridVolt", "gridVoltR", "rGridVolt",
+        "gridVoltageR", "gridVoltage1", "vGrid", "acGridVoltage",
+    ),
+}

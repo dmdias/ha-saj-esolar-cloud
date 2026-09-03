@@ -228,6 +228,18 @@
             },
             "inverterStatus": {
                 "name": "Inverter Status"
+            },
+            "pv1Voltage": {
+                "name": "PV1 Voltage"
+            },
+            "pv2Voltage": {
+                "name": "PV2 Voltage"
+            },
+            "inverterVoltage": {
+                "name": "Inverter Voltage"
+            },
+            "gridVoltage": {
+                "name": "Grid Voltage"
             }
         }
     }

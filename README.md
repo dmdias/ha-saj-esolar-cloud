@@ -55,6 +55,24 @@ It started as a fork of [SAJeSolar](https://github.com/djansen1987/SAJeSolar) by
 | **Output Power** | House consumption | W |
 | **Total Load Power** | Total system load | W |
 
+### 🔌 **Voltage Monitoring**
+| Sensor | Description | Unit |
+|--------|-------------|------|
+| **PV1 Voltage** | String 1 DC input voltage | V |
+| **PV2 Voltage** | String 2 DC input voltage | V |
+| **Inverter Voltage** | Inverter AC output voltage | V |
+| **Grid Voltage** | Grid connection voltage | V |
+
+> These come from the per-inverter device info endpoint. SAJ names the fields
+> differently across inverter families, so the integration matches a list of
+> known spellings (case- and separator-insensitive). If one stays unavailable,
+> run `scripts/dump_device_fields.py` (or enable debug logging) to see what
+> your inverter reports, and open an issue with the field names.
+>
+> On multi-inverter plants the plant device shows the **average** across
+> inverters (voltages are levels, not quantities); each inverter also reports
+> its own.
+
 ### 🔋 **Battery System Monitoring**
 | Sensor | Description | Unit |
 |--------|-------------|------|
@@ -183,6 +201,12 @@ It started as a fork of [SAJeSolar](https://github.com/djansen1987/SAJeSolar) by
   (Settings → Devices & Services → SAJ eSolar → Reload) after adding an inverter
 - Confirm both inverters are listed under the same plant in the eSolar portal
 - The plant-level "Current Power" reports the sum of all inverters
+
+**Voltage sensors unavailable:**
+- Enable debug logging for `custom_components.saj_esolar_cloud`; the field
+  names your inverter reports are logged on the first update
+- Or run `python3 scripts/dump_device_fields.py --username YOU --region eu`
+- Report the field names so the mapping in `DEVICE_DETAIL_FIELDS` can be extended
 
 **Missing batteries:**
 - Battery devices appear automatically if detected

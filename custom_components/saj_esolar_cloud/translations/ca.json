@@ -228,6 +228,18 @@
             },
             "inverterStatus": {
                 "name": "Estat de l'Inversor"
+            },
+            "pv1Voltage": {
+                "name": "Voltatge PV1"
+            },
+            "pv2Voltage": {
+                "name": "Voltatge PV2"
+            },
+            "inverterVoltage": {
+                "name": "Voltatge de l'Inversor"
+            },
+            "gridVoltage": {
+                "name": "Voltatge de la Xarxa"
             }
         }
     }
