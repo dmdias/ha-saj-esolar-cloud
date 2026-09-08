@@ -1,7 +1,7 @@
 # 🌞 SAJ eSolar Cloud (DMDIAS build) Integration for Home Assistant
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
-[![GitHub release](https://img.shields.io/github/release/elboletaire/ha-saj-esolar-cloud.svg)](https://github.com/elboletaire/ha-saj-esolar-cloud/releases)
+[![GitHub release](https://img.shields.io/github/release/dmdias/ha-saj-esolar-cloud.svg)](https://github.com/dmdias/ha-saj-esolar-cloud/releases)
 [![License: GPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 A comprehensive Home Assistant integration for SAJ eSolar Cloud (DMDIAS build) service, providing detailed monitoring of H1 inverters with battery storage systems.
@@ -124,13 +124,13 @@ It started as a fork of [SAJeSolar](https://github.com/djansen1987/SAJeSolar) by
 
 ### HACS (Recommended)
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=elboletaire&repository=ha-saj-esolar-cloud&category=integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=dmdias&repository=ha-saj-esolar-cloud&category=integration)
 
 1. Open HACS in your Home Assistant instance
 2. Go to "Integrations"
 3. Click the three dots menu in the top right corner
 4. Select "Custom repositories"
-5. Add this repository URL: `https://github.com/elboletaire/ha-saj-esolar-cloud`
+5. Add this repository URL: `https://github.com/dmdias/ha-saj-esolar-cloud`
 6. Select category: "Integration"
 7. Click "Add"
 8. Find "SAJ eSolar Cloud (DMDIAS build)" in the integrations list and install it
@@ -229,17 +229,26 @@ All sensors are properly configured for Home Assistant's Energy Dashboard:
 
 ## 🤝 Support
 
-For bugs, please [open an issue on GitHub](https://github.com/elboletaire/ha-saj-esolar-cloud/issues).
+For bugs, please [open an issue on GitHub](https://github.com/dmdias/ha-saj-esolar-cloud/issues).
 
-Please note: This is a personal project. While I welcome bug reports, I have limited time for feature requests and general support.
+Please note: this is a personal fork. Bug reports are welcome, but there is limited time for feature requests and general support. Issues specific to the upstream integration are better reported at [elboletaire/ha-saj-esolar-cloud](https://github.com/elboletaire/ha-saj-esolar-cloud/issues).
 
 ## Attribution
 
-This project originated from [SAJeSolar](https://github.com/djansen1987/SAJeSolar) by @djansen1987. The current codebase is a full rewrite; this attribution reflects the project origin and early structure. Thanks for the original groundwork.
+This build is a fork of [ha-saj-esolar-cloud](https://github.com/elboletaire/ha-saj-esolar-cloud) by [@elboletaire](https://github.com/elboletaire), which in turn originated from [SAJeSolar](https://github.com/djansen1987/SAJeSolar) by [@djansen1987](https://github.com/djansen1987). Thanks for the groundwork on both.
+
+### What this fork adds
+
+- **Multi-inverter plants**: plants that group several inverters are summed at plant level, and each inverter is also exposed as its own device with its own power, generation, online state and alarm sensors
+- **Tolerant voltage field lookup**: PV1/PV2, inverter and grid voltage are matched against a list of known SAJ field spellings (case- and separator-insensitive) instead of a single fixed name, so they keep working across inverter families and firmware versions
+- **Averaged voltages on multi-inverter plants**: the plant device averages voltages across inverters instead of summing them
+- **`scripts/dump_device_fields.py`**: dumps the raw field names your inverter reports, to diagnose unavailable sensors
 
 ## 🙏 Credits
 
-Vibe coded by **Òscar Casajuana** ([@elboletaire](https://github.com/elboletaire))
+Maintained in this fork by **Daniel Dias** ([@dmdias](https://github.com/dmdias)).
+
+Original integration vibe coded by **Òscar Casajuana** ([@elboletaire](https://github.com/elboletaire)).
 
 Special thanks to the Home Assistant community and SAJ Electric for their solar technology.
 
