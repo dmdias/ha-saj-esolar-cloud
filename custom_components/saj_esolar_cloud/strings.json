@@ -1,22 +1,38 @@
 {
-    "config": {
-        "step": {
-            "user": {
-                "title": "SAJ eSolar Cloud (DMDIAS build)",
-                "description": "Set up SAJ eSolar Cloud (DMDIAS build) integration. You need your eSolar Portal credentials.",
-                "data": {
-                    "username": "Username",
-                    "password": "Password"
-                }
-            }
-        },
-        "error": {
-            "cannot_connect": "Failed to connect to the SAJ eSolar API",
-            "invalid_auth": "Invalid authentication",
-            "unknown": "Unexpected error"
-        },
-        "abort": {
-            "already_configured": "Account is already configured"
+  "config": {
+    "step": {
+      "user": {
+        "title": "SAJ eSolar Cloud (DMDIAS build)",
+        "description": "Set up SAJ eSolar Cloud (DMDIAS build) integration. You need your eSolar Portal credentials.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
         }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the SAJ eSolar API",
+      "invalid_auth": "Invalid authentication",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "Account is already configured"
     }
+  },
+  "services": {
+    "import_history": {
+      "name": "Import energy history",
+      "description": "Rebuilds the long-term statistics of the lifetime energy sensors (generation, consumption, grid import/export, battery charge/discharge) from the daily plant energy kept by the SAJ cloud. Runs in the background and reports the outcome as a notification.",
+      "fields": {
+        "plant_uid": {
+          "name": "Plant",
+          "description": "Plant id. Default: every monitored plant."
+        },
+        "start_date": {
+          "name": "Start date",
+          "description": "First day to import. Default: the day the plant was created."
+        }
+      }
+    }
+  }
 }

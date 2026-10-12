@@ -1,246 +1,262 @@
 {
-    "config": {
-        "step": {
-            "user": {
-                "title": "SAJ eSolar Cloud (DMDIAS build)",
-                "description": "Set up SAJ eSolar Cloud (DMDIAS build) integration. You need your eSolar Portal credentials.",
-                "data": {
-                    "username": "Username",
-                    "password": "Password",
-                    "region": "Region"
-                },
-                "data_description": {
-                    "username": "Your eSolar Portal username",
-                    "password": "Your eSolar Portal password",
-                    "region": "Select your region (EU, India, or China)"
-                }
-            },
-            "plant_selection": {
-                "title": "Select Plants to Monitor",
-                "description": "Choose which solar plants you want to monitor. You can select multiple plants.",
-                "data": {
-                    "monitored_plants": "Plants to Monitor"
-                },
-                "data_description": {
-                    "monitored_plants": "Select one or more plants from your account"
-                }
-            }
+  "config": {
+    "step": {
+      "user": {
+        "title": "SAJ eSolar Cloud (DMDIAS build)",
+        "description": "Set up SAJ eSolar Cloud (DMDIAS build) integration. You need your eSolar Portal credentials.",
+        "data": {
+          "username": "Username",
+          "password": "Password",
+          "region": "Region"
         },
-        "error": {
-            "cannot_connect": "Failed to connect to the SAJ eSolar API",
-            "invalid_auth": "Invalid authentication credentials",
-            "no_plants": "No plants found in your account",
-            "no_plants_selected": "Please select at least one plant to monitor",
-            "unknown": "Unexpected error occurred"
+        "data_description": {
+          "username": "Your eSolar Portal username",
+          "password": "Your eSolar Portal password",
+          "region": "Select your region (EU, India, or China)"
+        }
+      },
+      "plant_selection": {
+        "title": "Select Plants to Monitor",
+        "description": "Choose which solar plants you want to monitor. You can select multiple plants.",
+        "data": {
+          "monitored_plants": "Plants to Monitor"
         },
-        "abort": {
-            "already_configured": "Account is already configured"
+        "data_description": {
+          "monitored_plants": "Select one or more plants from your account"
         }
+      }
     },
-    "options": {
-        "step": {
-            "init": {
-                "title": "SAJ eSolar Cloud (DMDIAS build) Options",
-                "description": "Configure options for SAJ eSolar Cloud (DMDIAS build) integration.",
-                "data": {
-                    "monitored_plants": "Plants to Monitor"
-                }
-            }
-        }
+    "error": {
+      "cannot_connect": "Failed to connect to the SAJ eSolar API",
+      "invalid_auth": "Invalid authentication credentials",
+      "no_plants": "No plants found in your account",
+      "no_plants_selected": "Please select at least one plant to monitor",
+      "unknown": "Unexpected error occurred"
     },
-    "entity": {
-        "sensor": {
-            "nowPower": {
-                "name": "Current Power"
-            },
-            "todayElectricity": {
-                "name": "Today Generation"
-            },
-            "monthElectricity": {
-                "name": "Current Month Generation"
-            },
-            "yearElectricity": {
-                "name": "Current Year Generation"
-            },
-            "totalElectricity": {
-                "name": "Total Generation"
-            },
-            "totalConsumpElec": {
-                "name": "Total Consumption"
-            },
-            "totalBuyElec": {
-                "name": "Total Grid Import"
-            },
-            "totalSellElec": {
-                "name": "Total Grid Export"
-            },
-            "selfUseRate": {
-                "name": "Self-Use Rate"
-            },
-            "totalPlantTreeNum": {
-                "name": "Trees Planted"
-            },
-            "totalReduceCo2": {
-                "name": "CO₂ Reduction"
-            },
-            "dailyConsumption": {
-                "name": "Today Consumption"
-            },
-            "dailyGridImport": {
-                "name": "Today Grid Import"
-            },
-            "dailyGridExport": {
-                "name": "Today Grid Export"
-            },
-            "dailyBatteryCharge": {
-                "name": "Today Battery Charge"
-            },
-            "dailyBatteryDischarge": {
-                "name": "Today Battery Discharge"
-            },
-            "dailyTreesPlanted": {
-                "name": "Today Trees Planted"
-            },
-            "dailyReduceCo2": {
-                "name": "Today CO₂ Reduction"
-            },
-            "lastUploadTime": {
-                "name": "Last Update"
-            },
-            "pvPower": {
-                "name": "PV Power"
-            },
-            "gridPower": {
-                "name": "Grid Power"
-            },
-            "gridPowerAbsolute": {
-                "name": "Grid Power Absolute"
-            },
-            "batteryPower": {
-                "name": "Battery Power"
-            },
-            "batteryPowerAbsolute": {
-                "name": "Battery Power Absolute"
-            },
-            "outPower": {
-                "name": "Output Power"
-            },
-            "totalLoadPower": {
-                "name": "Total Load Power"
-            },
-            "batCurr": {
-                "name": "Battery Current"
-            },
-            "batEnergyPercent": {
-                "name": "Battery Level"
-            },
-            "batCapcity": {
-                "name": "Battery Capacity"
-            },
-            "usableBatCapacity": {
-                "name": "Usable Battery Capacity"
-            },
-            "batteryWorkTime": {
-                "name": "Battery Remaining Time"
-            },
-            "operatingMode": {
-                "name": "Operating Mode"
-            },
-            "batVoltage": {
-                "name": "Battery Voltage"
-            },
-            "batTemperature": {
-                "name": "Battery Temperature"
-            },
-            "pvDirection": {
-                "name": "PV Direction",
-                "state": {
-                    "Importing": "Importing",
-                    "Standby": "Standby",
-                    "Exporting": "Exporting"
-                }
-            },
-            "gridDirection": {
-                "name": "Grid Direction",
-                "state": {
-                    "Importing": "Importing",
-                    "Standby": "Standby",
-                    "Exporting": "Exporting"
-                }
-            },
-            "batteryDirection": {
-                "name": "Battery Direction",
-                "state": {
-                    "Charging": "Charging",
-                    "Idle": "Idle",
-                    "Discharging": "Discharging"
-                }
-            },
-            "outPutDirection": {
-                "name": "Output Direction",
-                "state": {
-                    "Importing": "Importing",
-                    "Standby": "Standby",
-                    "Exporting": "Exporting"
-                }
-            },
-            "isOnline": {
-                "name": "Device Online",
-                "state": {
-                    "Yes": "Yes",
-                    "No": "No"
-                }
-            },
-            "batSoc": {
-                "name": "Battery Level"
-            },
-            "batSoh": {
-                "name": "Battery Health"
-            },
-            "runningState": {
-                "name": "Battery Status",
-                "state": {
-                    "Offline": "Offline",
-                    "Standby": "Standby",
-                    "Running": "Running"
-                }
-            },
-            "batModel": {
-                "name": "Battery Model"
-            },
-            "batPower": {
-                "name": "Battery Power"
-            },
-            "batCurrent": {
-                "name": "Battery Current"
-            },
-            "todayBatCharge": {
-                "name": "Today Battery Charge"
-            },
-            "todayBatDischarge": {
-                "name": "Today Battery Discharge"
-            },
-            "totalBatCharge": {
-                "name": "Total Battery Charge"
-            },
-            "totalBatDischarge": {
-                "name": "Total Battery Discharge"
-            },
-            "inverterStatus": {
-                "name": "Inverter Status"
-            },
-            "pv1Voltage": {
-                "name": "PV1 Voltage"
-            },
-            "pv2Voltage": {
-                "name": "PV2 Voltage"
-            },
-            "inverterVoltage": {
-                "name": "Inverter Voltage"
-            },
-            "gridVoltage": {
-                "name": "Grid Voltage"
-            }
-        }
+    "abort": {
+      "already_configured": "Account is already configured"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SAJ eSolar Cloud (DMDIAS build) Options",
+        "description": "Configure options for SAJ eSolar Cloud (DMDIAS build) integration.",
+        "data": {
+          "monitored_plants": "Plants to Monitor"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "nowPower": {
+        "name": "Current Power"
+      },
+      "todayElectricity": {
+        "name": "Today Generation"
+      },
+      "monthElectricity": {
+        "name": "Current Month Generation"
+      },
+      "yearElectricity": {
+        "name": "Current Year Generation"
+      },
+      "totalElectricity": {
+        "name": "Total Generation"
+      },
+      "totalConsumpElec": {
+        "name": "Total Consumption"
+      },
+      "totalBuyElec": {
+        "name": "Total Grid Import"
+      },
+      "totalSellElec": {
+        "name": "Total Grid Export"
+      },
+      "selfUseRate": {
+        "name": "Self-Use Rate"
+      },
+      "totalPlantTreeNum": {
+        "name": "Trees Planted"
+      },
+      "totalReduceCo2": {
+        "name": "CO₂ Reduction"
+      },
+      "dailyConsumption": {
+        "name": "Today Consumption"
+      },
+      "dailyGridImport": {
+        "name": "Today Grid Import"
+      },
+      "dailyGridExport": {
+        "name": "Today Grid Export"
+      },
+      "dailyBatteryCharge": {
+        "name": "Today Battery Charge"
+      },
+      "dailyBatteryDischarge": {
+        "name": "Today Battery Discharge"
+      },
+      "dailyTreesPlanted": {
+        "name": "Today Trees Planted"
+      },
+      "dailyReduceCo2": {
+        "name": "Today CO₂ Reduction"
+      },
+      "lastUploadTime": {
+        "name": "Last Update"
+      },
+      "pvPower": {
+        "name": "PV Power"
+      },
+      "gridPower": {
+        "name": "Grid Power"
+      },
+      "gridPowerAbsolute": {
+        "name": "Grid Power Absolute"
+      },
+      "batteryPower": {
+        "name": "Battery Power"
+      },
+      "batteryPowerAbsolute": {
+        "name": "Battery Power Absolute"
+      },
+      "outPower": {
+        "name": "Output Power"
+      },
+      "totalLoadPower": {
+        "name": "Total Load Power"
+      },
+      "batCurr": {
+        "name": "Battery Current"
+      },
+      "batEnergyPercent": {
+        "name": "Battery Level"
+      },
+      "batCapcity": {
+        "name": "Battery Capacity"
+      },
+      "usableBatCapacity": {
+        "name": "Usable Battery Capacity"
+      },
+      "batteryWorkTime": {
+        "name": "Battery Remaining Time"
+      },
+      "operatingMode": {
+        "name": "Operating Mode"
+      },
+      "batVoltage": {
+        "name": "Battery Voltage"
+      },
+      "batTemperature": {
+        "name": "Battery Temperature"
+      },
+      "pvDirection": {
+        "name": "PV Direction",
+        "state": {
+          "Importing": "Importing",
+          "Standby": "Standby",
+          "Exporting": "Exporting"
+        }
+      },
+      "gridDirection": {
+        "name": "Grid Direction",
+        "state": {
+          "Importing": "Importing",
+          "Standby": "Standby",
+          "Exporting": "Exporting"
+        }
+      },
+      "batteryDirection": {
+        "name": "Battery Direction",
+        "state": {
+          "Charging": "Charging",
+          "Idle": "Idle",
+          "Discharging": "Discharging"
+        }
+      },
+      "outPutDirection": {
+        "name": "Output Direction",
+        "state": {
+          "Importing": "Importing",
+          "Standby": "Standby",
+          "Exporting": "Exporting"
+        }
+      },
+      "isOnline": {
+        "name": "Device Online",
+        "state": {
+          "Yes": "Yes",
+          "No": "No"
+        }
+      },
+      "batSoc": {
+        "name": "Battery Level"
+      },
+      "batSoh": {
+        "name": "Battery Health"
+      },
+      "runningState": {
+        "name": "Battery Status",
+        "state": {
+          "Offline": "Offline",
+          "Standby": "Standby",
+          "Running": "Running"
+        }
+      },
+      "batModel": {
+        "name": "Battery Model"
+      },
+      "batPower": {
+        "name": "Battery Power"
+      },
+      "batCurrent": {
+        "name": "Battery Current"
+      },
+      "todayBatCharge": {
+        "name": "Today Battery Charge"
+      },
+      "todayBatDischarge": {
+        "name": "Today Battery Discharge"
+      },
+      "totalBatCharge": {
+        "name": "Total Battery Charge"
+      },
+      "totalBatDischarge": {
+        "name": "Total Battery Discharge"
+      },
+      "inverterStatus": {
+        "name": "Inverter Status"
+      },
+      "pv1Voltage": {
+        "name": "PV1 Voltage"
+      },
+      "pv2Voltage": {
+        "name": "PV2 Voltage"
+      },
+      "inverterVoltage": {
+        "name": "Inverter Voltage"
+      },
+      "gridVoltage": {
+        "name": "Grid Voltage"
+      }
+    }
+  },
+  "services": {
+    "import_history": {
+      "name": "Import energy history",
+      "description": "Rebuilds the long-term statistics of the lifetime energy sensors (generation, consumption, grid import/export, battery charge/discharge) from the daily plant energy kept by the SAJ cloud. Runs in the background and reports the outcome as a notification.",
+      "fields": {
+        "plant_uid": {
+          "name": "Plant",
+          "description": "Plant id. Default: every monitored plant."
+        },
+        "start_date": {
+          "name": "Start date",
+          "description": "First day to import. Default: the day the plant was created."
+        }
+      }
+    }
+  }
 }

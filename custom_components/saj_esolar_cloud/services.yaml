@@ -1,0 +1,12 @@
+import_history:
+  fields:
+    plant_uid:
+      required: false
+      example: "1CF6BBB0C9664FC384F348A40A1DBEA6"
+      selector:
+        text:
+    start_date:
+      required: false
+      example: "2025-07-12"
+      selector:
+        date:

@@ -479,7 +479,14 @@ ENDPOINTS_V2 = {
     "battery_info": "/monitor/device/getInverterBatteryEnergyDetailForApp",
     "device_alarms": "/devicedata/alarm/device/userAlarmPage",
     "device_more_data": "/monitor/deviceData/getDeviceMoreRealData",
+    "self_use_energy": "/monitor/plant/chart/getSelfUseEnergyData",
 }
+
+# chartDateType values of the plant chart endpoints
+CHART_DAY = 1
+CHART_MONTH = 3
+CHART_YEAR = 4
+CHART_TOTAL = 5
 
 # Battery sensor definitions for individual batteries
 BATTERY_SENSORS = {

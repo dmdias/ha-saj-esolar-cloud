@@ -65,6 +65,14 @@ STATE_CLASS_MAP = {
     "total": SensorStateClass.TOTAL,
 }
 
+# Generation sensors and the inverter field used when the plant total is missing
+PLANT_GENERATION_KEYS = {
+    "todayElectricity": "todayEnergy",
+    "monthElectricity": "monthEnergy",
+    "yearElectricity": "yearEnergy",
+    "totalElectricity": "totalEnergy",
+}
+
 # Sensors read from the energy flow
 FLOW_SENSOR_KEYS = {
     "gridPower",
@@ -328,6 +336,18 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
             device_entry.get("device_detail") or {}, key or self._sensor_key
         )
 
+    def _plant_generation(self, plant_data: dict[str, Any], plant_stats: dict[str, Any]) -> float | None:
+        """Plant PV energy for today, this month, this year or in total, if the API reported it."""
+        if self._sensor_key in ("todayElectricity", "totalElectricity"):
+            field = "energy1Today" if self._sensor_key == "todayElectricity" else "energy1Total"
+            for entry in plant_stats.get("energyDataList") or []:
+                if entry.get("dataType") == "PV_ENERGY" and entry.get(field) not in (None, ""):
+                    return float(entry[field])
+            return None
+        period = "month" if self._sensor_key == "monthElectricity" else "year"
+        energy = (plant_data.get("plant_energy") or {}).get(period) or {}
+        return optional_float(energy, "pvEnergy")
+
     @staticmethod
     def _battery_remaining(
         device_data: dict[str, Any], battery_info: dict[str, Any]
@@ -396,6 +416,13 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
             # Plant Detail Sensors - map from new plant data structure
             if self._sensor_key == "nowPower":
                 return optional_float(device_data, "powerNow")
+            elif self._sensor_key in PLANT_GENERATION_KEYS and self._device_sn is None:
+                # The plant counts every inverter it ever had (e.g. a replaced
+                # one); the inverter counters restart with each new inverter
+                plant_value = self._plant_generation(plant_data, plant_stats)
+                if plant_value is not None:
+                    return plant_value
+                return optional_float(device_data, PLANT_GENERATION_KEYS[self._sensor_key])
             elif self._sensor_key == "todayElectricity":
                 return optional_float(device_data, "todayEnergy")
             elif self._sensor_key == "monthElectricity":

@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.exceptions import ConfigEntryAuthFailed
 
-from .const import DEVICE_DETAIL_AGGREGATION, DEVICE_DETAIL_FIELDS, DOMAIN, ENDPOINTS, ENDPOINTS_V2, UPDATE_INTERVAL, REGIONS
+from .const import CHART_DAY, CHART_MONTH, CHART_YEAR, DEVICE_DETAIL_AGGREGATION, DEVICE_DETAIL_FIELDS, DOMAIN, ENDPOINTS, ENDPOINTS_V2, UPDATE_INTERVAL, REGIONS
 from .elekeeper import calc_signature, encrypt, generatkey, sign_v2_request
 
 _LOGGER = logging.getLogger(__name__)
@@ -244,6 +244,14 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
                 "device_detail": device_detail,
             }
 
+        # Plant energy of the current month and year, which (unlike the inverter
+        # counters) includes every inverter the plant ever had
+        now = datetime.now()
+        plant_energy = {
+            "month": await self._optional(plant_uid, "month energy", self.get_plant_energy(plant_uid, sn_list, CHART_MONTH, now.strftime("%Y-%m"))),
+            "year": await self._optional(plant_uid, "year energy", self.get_plant_energy(plant_uid, sn_list, CHART_YEAR, now.strftime("%Y"))),
+        }
+
         primary = devices_data[next(iter(devices_data))] if devices_data else {}
         # A single flow covering the whole plant (one inverter, or one EMS
         # module shared by all of them) is used as is instead of summed.
@@ -255,6 +263,7 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
             "device_list": device_list,
             "battery_list": battery_list,
             "plant_statistics": plant_statistics,
+            "plant_energy": plant_energy,
             # Kept for backwards compatibility: the primary inverter's own data.
             "energy_flow": plant_flow or primary.get("energy_flow", {}),
             "battery_info": primary.get("battery_info", {}),
@@ -698,6 +707,23 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
             return
         self._warned.add(key)
         _LOGGER.warning(msg, *args)
+
+    async def get_plant_energy(
+        self, plant_uid: str, sn_list: list[dict[str, Any]], date_type: int, period: str | None = None
+    ) -> dict[str, Any]:
+        """Plant energy totals (pv, load, buy, sell, charge, discharge) for a day, month, year or in total.
+
+        ``period`` is "YYYY-MM-DD", "YYYY-MM" or "YYYY" for CHART_DAY,
+        CHART_MONTH and CHART_YEAR; it is not used for the plant total.
+        """
+        body: dict[str, Any] = {"plantUid": plant_uid, **self._query_device(sn_list, {}, 0), "chartDateType": date_type}
+        if date_type == CHART_DAY:
+            body["chartDay"] = period
+        elif date_type == CHART_MONTH:
+            body["chartMonth"] = period
+        elif date_type == CHART_YEAR:
+            body["chartYear"] = period
+        return (await self._post_v2("self_use_energy", body, plant_uid)).get("data") or {}
 
     async def _get_plant_sn_list(self, plant_uid: str) -> list[dict[str, Any]]:
         """Get the device serials the plant home endpoints can be queried with.
