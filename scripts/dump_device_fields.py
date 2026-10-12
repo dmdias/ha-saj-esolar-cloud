@@ -28,8 +28,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 import aiohttp  # noqa: E402
 
-from saj_esolar_cloud.const import DEVICE_DETAIL_FIELDS, ENDPOINTS, REGIONS  # noqa: E402
-from saj_esolar_cloud.elekeeper import calc_signature, encrypt, generatkey  # noqa: E402
+from saj_esolar_cloud.const import DEVICE_DETAIL_FIELDS, ENDPOINTS, ENDPOINTS_V2, REGIONS  # noqa: E402
+from saj_esolar_cloud.elekeeper import calc_signature, encrypt, generatkey, sign_v2_request  # noqa: E402
 
 
 def signed(**extra):
@@ -55,6 +55,7 @@ async def main() -> int:
 
     password = args.password or getpass.getpass("eSolar password: ")
     base = REGIONS[args.region]
+    base_v2 = base.replace("/api/v1", "/api/v2")
 
     async with aiohttp.ClientSession() as session:
         async def get(endpoint, **params):
@@ -64,42 +65,59 @@ async def main() -> int:
                 resp.raise_for_status()
                 return await resp.json()
 
-        # Login
-        async with session.post(
-            f"{base}{ENDPOINTS['login']}",
-            data=signed() | {
-                "username": args.username,
-                "password": encrypt(password),
-                "rememberMe": "false",
-                "loginType": 1,
-            },
-        ) as resp:
-            resp.raise_for_status()
-            body = await resp.json()
+        async def post_v2(endpoint, token=None, **body):
+            sign_headers, raw = sign_v2_request(body, token=token)
+            async with session.post(
+                f"{base_v2}{ENDPOINTS_V2[endpoint]}", data=raw, headers=sign_headers
+            ) as resp:
+                resp.raise_for_status()
+                return json.loads(await resp.text())
+
+        # Login (the v2 token works for both v1 and v2 endpoints)
+        body = await post_v2(
+            "login",
+            username=args.username,
+            password=encrypt(password),
+            rememberMe=False,
+            loginType=1,
+        )
 
         if body.get("errCode"):
             print(f"Login failed: {body.get('errMsg')}", file=sys.stderr)
             return 1
-        token = body["data"]["tokenHead"] + body["data"]["token"]
+        token = (body["data"].get("tokenHead") or "Bearer ") + body["data"]["token"]
         headers = {"Authorization": token}
 
-        plants = (await get("plant_list", pageNo=1, pageSize=500))["data"]["list"]
+        plants = (await post_v2("plant_list", token, pageNo=1, pageSize=500))["data"]["list"]
         print(f"Found {len(plants)} plant(s)\n")
 
         for plant in plants:
             uid, name = plant["plantUid"], plant.get("plantName", "?")
-            devices = (await get(
-                "device_list", plantUid=uid, pageNo=1, pageSize=100, searchOfficeIdArr="1"
-            ))["data"]["list"]
+            tree = (await post_v2("device_tree", token, plantUid=uid)).get("data") or []
+            devices = [d for d in tree if d.get("deviceType") == 1]
             print(f"=== Plant {name} ({uid}) - {len(devices)} inverter(s) ===")
+            # Serials the energy flow is queried with: one per inverter lets
+            # the integration sum them, a single shared one is plant-wide
+            capability = (await post_v2("plant_capability", token, plantUid=uid)).get("data") or {}
+            print(f"    snList: {capability.get('snList')}")
 
             for device in devices:
                 sn = device.get("deviceSn")
                 print(f"\n--- Inverter {sn} ({device.get('deviceModel', '?')}) ---")
-                print(f"    powerNow={device.get('powerNow')} todayEnergy={device.get('todayEnergy')}")
 
-                detail = await get("device_info", deviceSn=sn)
-                data = detail.get("data") or {}
+                # The integration merges the v1 device info over the latest
+                # v2 raw data record, so dump the same combination
+                today = datetime.now().strftime("%Y-%m-%d")
+                raw = await post_v2(
+                    "raw_data", token, deviceSn=sn, deviceType=1, timeStr=today,
+                    startTime=f"{today} 00:00:00", endTime=f"{today} 23:59:59", pageNo=1, pageSize=1,
+                )
+                records = (raw.get("data") or {}).get("list") or []
+                data = dict(records[0]) if records else {}
+                try:
+                    data.update((await get("device_info", deviceSn=sn)).get("data") or {})
+                except aiohttp.ClientError as err:
+                    print(f"    device_info (api v1) failed: {err}")
                 if not data:
                     print("    device_info returned no data")
                     continue

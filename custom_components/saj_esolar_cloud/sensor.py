@@ -34,7 +34,12 @@ from .const import (
     H1_SENSORS,
     INVERTER_SENSOR_KEYS,
 )
-from .coordinator import SAJeSolarDataUpdateCoordinator
+from .coordinator import (
+    RUNNING_STATE_ALARM,
+    RUNNING_STATE_NORMAL,
+    SAJeSolarDataUpdateCoordinator,
+    parse_update_date,
+)
 
 # Device class mapping
 DEVICE_CLASS_MAP = {
@@ -52,6 +57,54 @@ STATE_CLASS_MAP = {
     "total_increasing": SensorStateClass.TOTAL_INCREASING,
     "total": SensorStateClass.TOTAL,
 }
+
+# Sensors read from the energy flow
+FLOW_SENSOR_KEYS = {
+    "gridPower",
+    "gridPowerAbsolute",
+    "batteryPower",
+    "batteryPowerAbsolute",
+    "outPower",
+    "totalLoadPower",
+    "batteryDirection",
+    "pvDirection",
+    "gridDirection",
+    "outPutDirection",
+}
+
+def optional_float(data: dict[str, Any], key: str) -> float | None:
+    """Read a numeric field, returning None (unknown) when it is missing."""
+    value = data.get(key)
+    if value in (None, ""):
+        return None
+    return float(str(value).rstrip("%"))
+
+def is_running(running_state: Any) -> bool:
+    """Whether an inverter runningState means it is online (normal or alarm)."""
+    return int(running_state) in (RUNNING_STATE_NORMAL, RUNNING_STATE_ALARM)
+
+def energy_stat(plant_stats: dict[str, Any], data_type: str, field: str) -> float:
+    """Read a value from the plant statistics energyDataList.
+
+    Entries are keyed by dataType (PV_ENERGY, LOAD_ENERGY, BUY_AND_SELL,
+    CHARGE_AND_DISCHARGE). For the paired ones energy1 is buy/charge and
+    energy2 is sell/discharge.
+    """
+    for entry in plant_stats.get("energyDataList") or []:
+        if entry.get("dataType") == data_type:
+            return float(entry.get(field) or 0)
+    return 0
+
+def environmental_stat(plant_stats: dict[str, Any], icon_key: str) -> float | None:
+    """Read a value from the plant statistics environmentalInformation.
+
+    Entries only carry a localized description, so match them by icon name
+    (PLANT_CO2, PLANT_TREE, PLANT_COAL).
+    """
+    for entry in plant_stats.get("environmentalInformation") or []:
+        if icon_key in (entry.get("iconUrl") or ""):
+            return float(entry.get("value") or 0)
+    return None
 
 def _inverter_label(device_entry: dict[str, Any], device_sn: str) -> str:
     """Human readable name for one inverter of a multi-inverter plant."""
@@ -238,7 +291,7 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
                 aggregate.get("device", {}) or {},
                 aggregate.get("energy_flow", {}) or {},
                 aggregate.get("battery_info", {}) or {},
-                (plant_data.get("device_alarms", {}) or {}).get("data", {}) or {},
+                aggregate.get("device_alarms", {}) or {},
             )
 
         device_entry = (plant_data.get("devices", {}) or {}).get(self._device_sn, {}) or {}
@@ -280,44 +333,44 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
             plant_details = plant_data.get("plant_details", {}).get("data", {})
             plant_stats = plant_data.get("plant_statistics", {}).get("data", {})
 
+            # An inverter sharing a plant-wide energy flow (e.g. one EMS
+            # module) has no flow of its own: unknown rather than 0.
+            if not energy_flow and self._sensor_key in FLOW_SENSOR_KEYS:
+                return None
+
             # Plant Detail Sensors - map from new plant data structure
             if self._sensor_key == "nowPower":
-                return float(device_data.get("powerNow", 0))
+                return optional_float(device_data, "powerNow")
             elif self._sensor_key == "todayElectricity":
-                return float(device_data.get("todayEnergy", 0))
+                return optional_float(device_data, "todayEnergy")
             elif self._sensor_key == "monthElectricity":
-                return float(device_data.get("monthEnergy", 0))
+                return optional_float(device_data, "monthEnergy")
             elif self._sensor_key == "yearElectricity":
-                return float(device_data.get("yearEnergy", 0))
+                return optional_float(device_data, "yearEnergy")
             elif self._sensor_key == "totalElectricity":
-                return float(device_data.get("totalEnergy", 0))
+                return optional_float(device_data, "totalEnergy")
             elif self._sensor_key == "totalConsumpElec":
-                # Use correct field names from plant statistics
-                return float(plant_stats.get("totalLoadEnergy", 0))
+                return energy_stat(plant_stats, "LOAD_ENERGY", "energy1Total")
             elif self._sensor_key == "totalBuyElec":
-                return float(plant_stats.get("totalBuyEnergy", 0))
+                return energy_stat(plant_stats, "BUY_AND_SELL", "energy1Total")
             elif self._sensor_key == "totalSellElec":
-                return float(plant_stats.get("totalSellEnergy", 0))
+                return energy_stat(plant_stats, "BUY_AND_SELL", "energy2Total")
             elif self._sensor_key == "totalPlantTreeNum":
-                return float(plant_stats.get("totalPlantTreeNum", 0))
+                return environmental_stat(plant_stats, "PLANT_TREE")
             elif self._sensor_key == "totalReduceCo2":
-                return float(plant_stats.get("totalReduceCo2", 0))
+                return environmental_stat(plant_stats, "PLANT_CO2")
             elif self._sensor_key == "lastUploadTime":
                 # Prefer the latest energy flow update time (real last update).
                 # Fall back to the inverter's firstOnlineTime if it is missing.
-                update_time = energy_flow.get("updateDate", "")
-                if update_time:
-                    try:
-                        naive_dt = datetime.strptime(update_time, "%Y-%m-%d %H:%M:%S")
-                        tz_name = plant_details.get("timeZone") or plant_details.get("timezone")
-                        if tz_name:
-                            try:
-                                return dt_util.as_utc(naive_dt.replace(tzinfo=ZoneInfo(tz_name)))
-                            except Exception:
-                                pass
-                        return dt_util.as_utc(naive_dt)
-                    except ValueError:
-                        pass
+                naive_dt = parse_update_date(energy_flow.get("updateDate"))
+                if naive_dt:
+                    tz_name = plant_details.get("timeZone") or plant_details.get("timezone")
+                    if tz_name:
+                        try:
+                            return dt_util.as_utc(naive_dt.replace(tzinfo=ZoneInfo(tz_name)))
+                        except Exception:
+                            pass
+                    return dt_util.as_utc(naive_dt)
 
                 # Fallback to original behaviour (first online time)
                 timestamp = device_data.get("firstOnlineTime", "")
@@ -332,10 +385,10 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
                 # Calculate PV self-use rate from today's PV generation and grid
                 # export. Prefer plant statistics, fall back to the inverter's
                 # own today energy so it also works on H1 setups.
-                today_pv_energy = float(plant_stats.get("todayPvEnergy", 0) or 0)
+                today_pv_energy = energy_stat(plant_stats, "PV_ENERGY", "energy1Today")
                 if today_pv_energy <= 0:
                     today_pv_energy = float(device_data.get("todayEnergy", 0) or 0)
-                today_sell_energy = float(plant_stats.get("todaySellEnergy", 0) or 0)
+                today_sell_energy = energy_stat(plant_stats, "BUY_AND_SELL", "energy2Today")
 
                 if today_pv_energy > 0:
                     self_used_energy = max(today_pv_energy - today_sell_energy, 0)
@@ -346,7 +399,7 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
             # Device Power Sensors - map from energy flow and device data
             elif self._sensor_key == "pvPower":
                 # Use device powerNow for real-time PV power (not solarPower which is capacity)
-                return float(device_data.get("powerNow", 0))
+                return optional_float(device_data, "powerNow")
             elif self._sensor_key == "gridPower":
                 # Grid power from energy flow - correct field name
                 grid_power = float(energy_flow.get("sysGridPowerwatt", 0))
@@ -371,67 +424,62 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
                 return float(energy_flow.get("totalLoadPowerwatt", 0))
             elif self._sensor_key == "batCapcity":
                 # Battery capacity from battery info (system total in kWh)
-                return float(battery_info.get("batCapacity", 0))
+                return optional_float(battery_info, "batCapacity")
             elif self._sensor_key == "batCurr":
                 # Battery current from battery info (system total)
-                return float(battery_info.get("batCurrent", 0))
+                return optional_float(battery_info, "batCurrent")
             elif self._sensor_key == "batVoltage":
                 # Battery voltage from battery info (system voltage)
-                return float(battery_info.get("batVoltage", 0))
+                return optional_float(battery_info, "batVoltage")
             elif self._sensor_key == "usableBatCapacity":
                 # Usable battery capacity from battery info
-                return float(battery_info.get("usableBatCapacity", 0))
+                return optional_float(battery_info, "usableBatCapacity")
             elif self._sensor_key == "batteryWorkTime":
                 # Battery remaining time in hours (convert from minutes)
-                work_time_min = battery_info.get("batteryWorkTime", 0)
-                return round(float(work_time_min) / 60, 1)  # Convert to hours
+                work_time_min = optional_float(battery_info, "batteryWorkTime")
+                if work_time_min is None:
+                    return None
+                return round(work_time_min / 60, 1)  # Convert to hours
             elif self._sensor_key == "operatingMode":
                 # Operating mode from battery info
-                return battery_info.get("userModeName", "Unknown")
+                return battery_info.get("userModeName") or energy_flow.get("userModeName") or "Unknown"
             elif self._sensor_key == "batEnergyPercent":
-                bat_percent = device_data.get("batEnergyPercent", "0")
-                return float(str(bat_percent).rstrip("%"))
+                return optional_float(device_data, "batEnergyPercent")
             elif self._sensor_key == "batteryDirection":
-                direction = device_data.get("batteryDirection", 0)
+                direction = energy_flow.get("batteryDirection", 0)
                 return BATTERY_STATES.get(int(direction), f"Unknown ({direction})")
             elif self._sensor_key == "isOnline":
-                running_state = device_data.get("runningState", 0)
-                return "Yes" if int(running_state) == 1 else "No"
+                running_state = device_data.get("runningState")
+                if running_state is None:
+                    return None
+                return "Yes" if is_running(running_state) else "No"
             elif self._sensor_key == "inverterStatus":
-                if self._device_sn is not None:
-                    # A single inverter answers for itself: its own alarm list.
-                    return "Alarm" if device_alarms.get("list") else "OK"
-
-                # Inverter status based on deviceStatus from plant statistics
-                device_status = plant_stats.get("deviceStatus", 2)
-
-                if device_status == 2:
-                    return "OK"
-                elif device_status == 3:
+                # Inverter status based on the active alarms of the device(s)
+                # (plant statistics no longer report a deviceStatus)
+                if device_alarms.get("list") or device_data.get("runningState") == RUNNING_STATE_ALARM:
                     return "Alarm"
-                else:
-                    # Log unknown status for debugging
-                    from homeassistant.core import HomeAssistant
-                    import logging
-                    _LOGGER = logging.getLogger(__name__)
-                    _LOGGER.warning(f"Unknown deviceStatus: {device_status} for plant {self._plant_uid}")
-                    return "Alarm"
+                if "list" not in device_alarms:
+                    # Alarms could not be fetched
+                    return None
+                return "OK"
 
             # Daily Values from plant statistics and device data - correct field names
             elif self._sensor_key == "dailyConsumption":
-                return float(plant_stats.get("todayLoadEnergy", 0))
+                return energy_stat(plant_stats, "LOAD_ENERGY", "energy1Today")
             elif self._sensor_key == "dailyGridImport":
-                return float(plant_stats.get("todayBuyEnergy", 0))
+                return energy_stat(plant_stats, "BUY_AND_SELL", "energy1Today")
             elif self._sensor_key == "dailyGridExport":
-                return float(plant_stats.get("todaySellEnergy", 0))
+                return energy_stat(plant_stats, "BUY_AND_SELL", "energy2Today")
             elif self._sensor_key == "dailyBatteryCharge":
-                return float(plant_stats.get("todayBatChgEnergy", device_data.get("todayBatChgEnergy", 0)))
+                return energy_stat(plant_stats, "CHARGE_AND_DISCHARGE", "energy1Today")
             elif self._sensor_key == "dailyBatteryDischarge":
-                return float(plant_stats.get("todayBatDischgEnergy", device_data.get("todayBatDisChgEnergy", 0)))
+                return energy_stat(plant_stats, "CHARGE_AND_DISCHARGE", "energy2Today")
             elif self._sensor_key == "dailyTreesPlanted":
-                return float(plant_stats.get("todayPlantTreeNum", 0))
+                # No longer provided by the plant statistics endpoint
+                return None
             elif self._sensor_key == "dailyReduceCo2":
-                return float(plant_stats.get("todayReduceCo2", 0))
+                # No longer provided by the plant statistics endpoint
+                return None
 
             # Direction sensors from energy flow
             elif self._sensor_key == "pvDirection":
@@ -441,7 +489,7 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
                 value = int(energy_flow.get("gridDirection", 0))
                 return DIRECTION_STATES.get(value, f"Unknown ({value})")
             elif self._sensor_key == "outPutDirection":
-                value = int(energy_flow.get("outPutDirection", 0))
+                value = int(energy_flow.get("outputDirection", 0))
                 return DIRECTION_STATES.get(value, f"Unknown ({value})")
 
             # String and AC voltages from the per-inverter device info
@@ -489,31 +537,21 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
 
         elif self._sensor_key == "inverterStatus":
             try:
-                plant_data, _, _, _, device_alarms = self._sources()
-                plant_stats = plant_data.get("plant_statistics", {}).get("data", {})
+                _, _, _, _, device_alarms = self._sources()
 
-                if self._device_sn is not None:
-                    device_status = 3 if device_alarms.get("list") else 2
-                else:
-                    device_status = plant_stats.get("deviceStatus", 2)
                 attributes = {}
 
-                if device_status == 3:
-                    # Device has alarm status, get alarm details
-                    alarm_list = device_alarms.get("list", [])
-                    if alarm_list:
-                        # Get the first (most recent) alarm
-                        alarm = alarm_list[0]
-                        attributes["alarm_name"] = alarm.get("alarmName", "Unknown")
-                        attributes["alarm_level"] = alarm.get("alarmLevelName", "Unknown")
-                        attributes["alarm_duration"] = alarm.get("alarmDuration", "Unknown")
-                        attributes["alarm_start_time"] = alarm.get("alarmStartTime", "Unknown")
-                        attributes["alarm_state"] = alarm.get("alarmStateName", "Unknown")
-                    else:
-                        attributes["alarm_message"] = "Alarm status detected but no alarm details available"
-                elif device_status not in [2, 3]:
-                    # Unknown device status
-                    attributes["alarm_message"] = f"Unknown deviceStatus {device_status} detected"
+                alarm_list = device_alarms.get("list", [])
+                if alarm_list:
+                    # Get the first (most recent) alarm
+                    alarm = alarm_list[0]
+                    attributes["alarm_name"] = alarm.get("alarmName", "Unknown")
+                    attributes["alarm_level"] = alarm.get("alarmLevelName", "Unknown")
+                    attributes["alarm_duration"] = alarm.get("alarmDuration", "Unknown")
+                    attributes["alarm_start_time"] = alarm.get("alarmStartTime", "Unknown")
+                    attributes["alarm_state"] = alarm.get("alarmStateName", "Unknown")
+                    if self._device_sn is None and len(alarm_list) > 1:
+                        attributes["alarm_count"] = len(alarm_list)
 
                 return attributes if attributes else None
 
@@ -532,9 +570,11 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
             # For the plant this is the aggregate state (online when at least
             # one inverter is), for an inverter sensor it is its own state.
             _, device_data, _, _, _ = self._sources()
-            if not device_data:
+            if not device_data or device_data.get("deviceCount") == 0:
                 return False
-            return bool(int(device_data.get("runningState", 0) or 0))
+            # Unknown state (e.g. the request failed) keeps the entity available
+            running_state = device_data.get("runningState")
+            return running_state is None or bool(int(running_state))
         except (KeyError, TypeError, ValueError):
             return False
 
