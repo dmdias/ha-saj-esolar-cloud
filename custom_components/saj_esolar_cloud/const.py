@@ -341,7 +341,106 @@ H1_SENSORS = {
         "device_class": None,
         "state_class": None,
         "unit": None,
-    }
+    },
+    # Values shown by the Elekeeper portal overview and device panels
+    "inverterTemperature": {
+        "name": "Inverter Temperature",
+        "icon": "mdi:thermometer",
+        "device_class": "temperature",
+        "state_class": "measurement",
+        "unit": "°C",
+    },
+    "batteryCellTempMax": {
+        "name": "Battery Highest Cell Temperature",
+        "icon": "mdi:thermometer-chevron-up",
+        "device_class": "temperature",
+        "state_class": "measurement",
+        "unit": "°C",
+    },
+    "batteryCellTempMin": {
+        "name": "Battery Lowest Cell Temperature",
+        "icon": "mdi:thermometer-chevron-down",
+        "device_class": "temperature",
+        "state_class": "measurement",
+        "unit": "°C",
+    },
+    "batteryCellVoltMax": {
+        "name": "Battery Highest Cell Voltage",
+        "icon": "mdi:battery-arrow-up",
+        "device_class": "voltage",
+        "state_class": "measurement",
+        "unit": "mV",
+    },
+    "batteryCellVoltMin": {
+        "name": "Battery Lowest Cell Voltage",
+        "icon": "mdi:battery-arrow-down",
+        "device_class": "voltage",
+        "state_class": "measurement",
+        "unit": "mV",
+    },
+    "batteryCellVoltAvg": {
+        "name": "Battery Average Cell Voltage",
+        "icon": "mdi:battery-heart-outline",
+        "device_class": "voltage",
+        "state_class": "measurement",
+        "unit": "mV",
+    },
+    "batteryRemainingEnergy": {
+        "name": "Battery Remaining Energy",
+        "icon": "mdi:battery-heart-variant",
+        "device_class": "energy_storage",
+        "state_class": "measurement",
+        "unit": "kWh",
+    },
+    "batteryTimeToFull": {
+        "name": "Battery Time To Full",
+        "icon": "mdi:battery-clock",
+        "device_class": "duration",
+        "state_class": "measurement",
+        "unit": "h",
+    },
+    "selfSufficiencyRate": {
+        "name": "Self-Sufficiency Rate",
+        "icon": "mdi:home-lightning-bolt",
+        "device_class": None,
+        "state_class": "measurement",
+        "unit": "%",
+    },
+    "totalBatteryCharge": {
+        "name": "Total Battery Charge",
+        "icon": "mdi:battery-plus",
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit": "kWh",
+    },
+    "totalBatteryDischarge": {
+        "name": "Total Battery Discharge",
+        "icon": "mdi:battery-minus",
+        "device_class": "energy",
+        "state_class": "total_increasing",
+        "unit": "kWh",
+    },
+    "totalRevenue": {
+        "name": "Total Revenue",
+        "icon": "mdi:cash",
+        "device_class": "monetary",
+        "state_class": "total",
+        "unit": None,
+    },
+    "todayRevenue": {
+        "name": "Today Revenue",
+        "icon": "mdi:cash-plus",
+        "device_class": "monetary",
+        "state_class": "total",
+        "unit": None,
+    },
+    "yesterdayRevenue": {
+        "name": "Yesterday Revenue",
+        "icon": "mdi:cash-plus",
+        "device_class": "monetary",
+        "state_class": None,
+        "unit": None,
+    },
 }
 
 # Direction states mapping
@@ -379,6 +478,7 @@ ENDPOINTS_V2 = {
     "raw_data": "/monitor/deviceData/findRawdataPageList",
     "battery_info": "/monitor/device/getInverterBatteryEnergyDetailForApp",
     "device_alarms": "/devicedata/alarm/device/userAlarmPage",
+    "device_more_data": "/monitor/deviceData/getDeviceMoreRealData",
 }
 
 # Battery sensor definitions for individual batteries
@@ -503,6 +603,14 @@ INVERTER_SENSOR_KEYS = (
     "isOnline",
     "inverterStatus",
     "lastUploadTime",
+    "inverterTemperature",
+    "batteryCellTempMax",
+    "batteryCellTempMin",
+    "batteryCellVoltMax",
+    "batteryCellVoltMin",
+    "batteryCellVoltAvg",
+    "batteryRemainingEnergy",
+    "batteryTimeToFull",
 )
 
 
@@ -522,11 +630,51 @@ DEVICE_DETAIL_FIELDS = {
         "vPv2", "pvVolt2", "inputVoltage2",
     ),
     "inverterVoltage": (
-        "invVolt", "inverterVoltage", "acOutputVoltage", "outputVoltage",
+        "rOutVolt", "rOnGridOutVolt", "invVolt", "inverterVoltage", "acOutputVoltage", "outputVoltage",
         "acVoltage", "invVoltR", "rInvVolt", "vInv",
     ),
     "gridVoltage": (
         "gridVolt", "gridVoltage", "sysGridVolt", "gridVoltR", "rGridVolt",
         "gridVoltageR", "gridVoltage1", "vGrid", "acGridVoltage",
     ),
+    # Read from the v2 raw data record and battery detail. ``deviceTemp`` and
+    # the BMS ``maxTemp``/``singVolMax`` names come from the Elekeeper web.
+    "inverterTemperature": (
+        "deviceTemp", "invTemp", "inverterTemp", "inverterTemperature", "sinkTemp",
+    ),
+    "batteryCellTempMax": (
+        "maxTemp", "maxBatTemp", "cellMaxTemp", "batMaxCellTemp", "highestCellTemp",
+        "maxCellTemp",
+    ),
+    "batteryCellTempMin": (
+        "minTemp", "minBatTemp", "cellMinTemp", "batMinCellTemp", "lowestCellTemp",
+        "minCellTemp",
+    ),
+    "batteryCellVoltMax": (
+        "singVolMax", "maxVol", "cellMaxVolt", "maxCellVolt", "highestCellVolt",
+        "batMaxCellVolt",
+    ),
+    # Cells in series, to derive the average cell voltage
+    "batteryCellCount": ("voltageCount", "cellCount", "batCellNum"),
+    "batteryCellVoltMin": (
+        "singVolMin", "minVol", "cellMinVolt", "minCellVolt", "lowestCellVolt",
+        "batMinCellVolt",
+    ),
 }
+
+# How a detail value combines across the inverters of a plant (default: mean).
+DEVICE_DETAIL_AGGREGATION = {
+    "inverterTemperature": "max",
+    "batteryCellTempMax": "max",
+    "batteryCellTempMin": "min",
+    "batteryCellVoltMax": "max",
+    "batteryCellVoltMin": "min",
+}
+
+# Revenue fields, looked up in the plant statistics and plant detail.
+REVENUE_FIELDS = {
+    "totalRevenue": ("totalIncome", "totalRevenue", "totalProfit", "totalEarnings"),
+    "todayRevenue": ("todayIncome", "todayRevenue", "todayProfit"),
+    "yesterdayRevenue": ("yesterdayIncome", "yesterdayRevenue", "yesterdayProfit"),
+}
+CURRENCY_FIELDS = ("currency", "currencyUnit", "moneyUnit", "currencySymbol")

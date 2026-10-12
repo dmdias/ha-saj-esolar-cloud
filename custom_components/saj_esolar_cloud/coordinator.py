@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.exceptions import ConfigEntryAuthFailed
 
-from .const import DEVICE_DETAIL_FIELDS, DOMAIN, ENDPOINTS, ENDPOINTS_V2, UPDATE_INTERVAL, REGIONS
+from .const import DEVICE_DETAIL_AGGREGATION, DEVICE_DETAIL_FIELDS, DOMAIN, ENDPOINTS, ENDPOINTS_V2, UPDATE_INTERVAL, REGIONS
 from .elekeeper import calc_signature, encrypt, generatkey, sign_v2_request
 
 _LOGGER = logging.getLogger(__name__)
@@ -26,6 +26,11 @@ UPDATE_DATE_FORMATS = ("%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S")
 # Keys already reported as unresolvable, so the warning is logged once per key
 # instead of on every update.
 _WARNED_FIELDS: set[str] = set()
+
+# Detail values only some inverters/batteries report: missing is expected
+_OPTIONAL_DETAIL = {
+    "batteryCellTempMax", "batteryCellTempMin", "batteryCellVoltMax", "batteryCellVoltMin", "batteryCellCount",
+}
 
 
 def _normalise(key: str) -> str:
@@ -69,6 +74,27 @@ def resolve_field(source: dict[str, Any], candidates: tuple[str, ...]) -> float 
         if (value := to_float(normalised.get(_normalise(candidate)))) is not None:
             return value
     return None
+
+
+def _flatten(data: dict[str, Any]) -> dict[str, Any]:
+    """Lift scalar fields of nested objects (and first list items) to the top.
+
+    Battery details nest the BMS readings (e.g. in a list of BMS records);
+    top-level fields win over nested ones with the same name.
+    """
+    flat: dict[str, Any] = {}
+    nested: list[dict[str, Any]] = []
+    for key, value in data.items():
+        if isinstance(value, dict):
+            nested.append(value)
+        elif isinstance(value, list):
+            nested.extend(item for item in value[:1] if isinstance(item, dict))
+        else:
+            flat[key] = value
+    for item in nested:
+        for key, value in _flatten(item).items():
+            flat.setdefault(key, value)
+    return flat
 
 
 def parse_update_date(value: Any) -> datetime | None:
@@ -268,6 +294,9 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
             "totalEnergy",
             "todayBatChgEnergy",
             "todayBatDisChgEnergy",
+            "todayIncome",
+            "totalIncome",
+            "yesterdayIncome",
         )
         battery_keys = (
             "batCapacity",
@@ -391,6 +420,10 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
         )
         device_agg["firstOnlineTime"] = first_online_time or ""
         device_agg["deviceCount"] = len(devices_data)
+        device_agg["currency"] = next(
+            (d["device_info"]["currency"] for d in devices_data.values() if (d.get("device_info") or {}).get("currency")),
+            None,
+        )
 
         if plant_flow is not None:
             # One flow already describes the whole plant, do not sum it.
@@ -419,12 +452,20 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
         battery_agg["userModeName"] = user_mode
         battery_agg["updateDate"] = _latest(battery_dates)
 
-        # Voltages are levels, not quantities: averaging the inverters
+        # Voltages and temperatures are levels, not quantities: averaging the
+        # inverters (or taking the extreme, for highest/lowest readings)
         # describes the plant, whereas summing them would be meaningless.
-        detail_agg = {
-            key: round(sum(values) / len(values), 1) if values else None
-            for key, values in detail_values.items()
-        }
+        def _combine(key: str, values: list[float]) -> float | None:
+            if not values:
+                return None
+            mode = DEVICE_DETAIL_AGGREGATION.get(key)
+            if mode == "max":
+                return max(values)
+            if mode == "min":
+                return min(values)
+            return round(sum(values) / len(values), 1)
+
+        detail_agg = {key: _combine(key, values) for key, values in detail_values.items()}
 
         return {
             "device": device_agg,
@@ -550,11 +591,16 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
         device_sn = device["deviceSn"]
 
         energy = (await self._post_v2("inverter_energy", {"deviceSn": device_sn}, plant_uid)).get("data") or {}
-        for key in ("powerNow", "todayEnergy", "monthEnergy", "totalEnergy"):
+        for key in (
+            "powerNow", "todayEnergy", "monthEnergy", "totalEnergy",
+            "todayIncome", "totalIncome", "yesterdayIncome", "currency",
+        ):
             if energy.get(key) not in (None, ""):
                 device[key] = energy[key]
         if energy.get("batterySoc") is not None:
             device["batEnergyPercent"] = energy["batterySoc"]
+        # Handed over to the field diagnostics by _get_device_detail
+        device["_energy"] = energy
 
         capability = await self._optional(
             plant_uid, "inverter state", self._post_v2("device_capability", {"deviceSn": device_sn}, plant_uid)
@@ -699,6 +745,33 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
         device_sn = device["deviceSn"]
         data = dict(device.pop("_raw_data", None) or {})
 
+        # The battery energy detail (as the Elekeeper app reads it) carries the
+        # BMS cell temperatures and voltages; only fill fields still missing.
+        battery_detail = await self._optional(
+            plant_uid, "battery detail", self._post_v2("battery_info", {"deviceSn": device_sn}, plant_uid)
+        )
+        # "More data" (as the portal names it) holds the BMS real-time
+        # readings: highest/lowest cell temperature and voltage.
+        more_data = await self._optional(
+            plant_uid,
+            "device more data",
+            self._post_v2("device_more_data", {"deviceSn": device_sn, "searchFromRealData": 1}, plant_uid),
+        )
+        for source in (battery_detail, more_data):
+            for key, value in _flatten(source.get("data") or {}).items():
+                if data.get(key) in (None, ""):
+                    data[key] = value
+
+        self._log_field_values_once(
+            device_sn,
+            {
+                "raw_data": data,
+                "battery_detail": battery_detail.get("data"),
+                "more_data": more_data.get("data"),
+                "inverter_energy": device.pop("_energy", None),
+            },
+        )
+
         try:
             detail = await self._get_v1("device_info", {"deviceSn": device_sn}, plant_uid)
             data.update(detail.get("data") or {})
@@ -714,6 +787,36 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
 
         return {"data": data}
 
+    def _log_field_values_once(self, device_sn: str, sources: dict[str, Any]) -> None:
+        """Log, once per inverter, the temperature/voltage/income fields and their values.
+
+        Field names alone do not tell which ones are filled for a given
+        inverter and battery, so this lists every matching value (including
+        inside nested lists) to map the sensors to the right fields.
+        """
+        if f"fields_{device_sn}" in self._warned:
+            return
+        self._warned.add(f"fields_{device_sn}")
+
+        pattern = re.compile(r"temp|vol|income|currency|cell|soh|maxt|mint", re.IGNORECASE)
+        found: list[str] = []
+
+        def walk(value: Any, path: str) -> None:
+            if len(found) >= 150:
+                return
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    walk(item, f"{path}.{key}" if path else key)
+            elif isinstance(value, list):
+                for index, item in enumerate(value[:4]):
+                    walk(item, f"{path}[{index}]")
+            elif pattern.search(path.rsplit(".", 1)[-1]) and not path.endswith("Str") and value not in (None, ""):
+                found.append(f"{path}={value}")
+
+        for name, source in sources.items():
+            walk(source or {}, name)
+        _LOGGER.debug("Field values reported for inverter %s: %s", device_sn, "; ".join(found) or "none")
+
     @staticmethod
     def detail_value(device_detail: dict[str, Any], sensor_key: str) -> float | None:
         """Resolve one detail sensor from an inverter's device info response."""
@@ -724,7 +827,7 @@ class SAJeSolarDataUpdateCoordinator(DataUpdateCoordinator):
         data = (device_detail or {}).get("data") or {}
         value = resolve_field(data, candidates)
 
-        if value is None and data and sensor_key not in _WARNED_FIELDS:
+        if value is None and data and sensor_key not in _WARNED_FIELDS and sensor_key not in _OPTIONAL_DETAIL:
             _WARNED_FIELDS.add(sensor_key)
             _LOGGER.warning(
                 "No field matching %s found in the device info response; "

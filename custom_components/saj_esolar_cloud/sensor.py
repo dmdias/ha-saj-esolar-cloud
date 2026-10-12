@@ -32,13 +32,17 @@ from .const import (
     DIRECTION_STATES,
     DOMAIN,
     H1_SENSORS,
+    CURRENCY_FIELDS,
     INVERTER_SENSOR_KEYS,
+    REVENUE_FIELDS,
 )
 from .coordinator import (
     RUNNING_STATE_ALARM,
     RUNNING_STATE_NORMAL,
     SAJeSolarDataUpdateCoordinator,
     parse_update_date,
+    resolve_field,
+    to_float,
 )
 
 # Device class mapping
@@ -49,6 +53,9 @@ DEVICE_CLASS_MAP = {
     "timestamp": SensorDeviceClass.TIMESTAMP,
     "temperature": SensorDeviceClass.TEMPERATURE,
     "voltage": SensorDeviceClass.VOLTAGE,
+    "energy_storage": SensorDeviceClass.ENERGY_STORAGE,
+    "duration": SensorDeviceClass.DURATION,
+    "monetary": SensorDeviceClass.MONETARY,
 }
 
 # State class mapping
@@ -303,7 +310,7 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
             (device_entry.get("device_alarms", {}) or {}).get("data", {}) or {},
         )
 
-    def _detail_value(self) -> float | None:
+    def _detail_value(self, key: str | None = None) -> float | None:
         """Resolve a device-detail sensor (string and AC voltages).
 
         The plant aggregate holds values already resolved and averaged by the
@@ -314,12 +321,60 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
 
         if self._device_sn is None:
             aggregate = plant_data.get("aggregate", {}) or {}
-            return (aggregate.get("device_detail") or {}).get(self._sensor_key)
+            return (aggregate.get("device_detail") or {}).get(key or self._sensor_key)
 
         device_entry = (plant_data.get("devices", {}) or {}).get(self._device_sn, {}) or {}
         return SAJeSolarDataUpdateCoordinator.detail_value(
-            device_entry.get("device_detail") or {}, self._sensor_key
+            device_entry.get("device_detail") or {}, key or self._sensor_key
         )
+
+    @staticmethod
+    def _battery_remaining(
+        device_data: dict[str, Any], battery_info: dict[str, Any]
+    ) -> tuple[float, float] | None:
+        """Energy stored in the battery and its capacity, in kWh."""
+        soc = optional_float(device_data, "batEnergyPercent")
+        capacity = optional_float(battery_info, "batCapacity")
+        if soc is None or not capacity:
+            return None
+        return capacity * soc / 100, capacity
+
+    def _revenue(
+        self, plant_data: dict[str, Any], device_data: dict[str, Any] | None = None
+    ) -> tuple[float | None, str | None]:
+        """Revenue for this sensor and its currency.
+
+        The inverter energy detail reports it (summed over the inverters for
+        the plant); plant statistics and detail are checked as fallback.
+        """
+        sources = [
+            device_data or {},
+            (plant_data.get("plant_statistics", {}) or {}).get("data", {}) or {},
+            (plant_data.get("plant_details", {}) or {}).get("data", {}) or {},
+        ]
+        value = next(
+            (v for source in sources if (v := resolve_field(source, REVENUE_FIELDS[self._sensor_key])) is not None),
+            None,
+        )
+        currency = next(
+            (source[key] for source in sources for key in CURRENCY_FIELDS if source.get(key)),
+            None,
+        )
+        return value, currency
+
+    @property
+    def native_unit_of_measurement(self) -> str | None:
+        """Revenue sensors use the currency the plant reports."""
+        if self._sensor_key in REVENUE_FIELDS:
+            try:
+                plant_data, device_data, _, _, _ = self._sources()
+                # Monetary sensors need an ISO 4217 code, the API may send a symbol
+                currency = str(self._revenue(plant_data, device_data)[1] or "").strip()
+                currency = {"€": "EUR", "$": "USD", "£": "GBP", "¥": "CNY", "₹": "INR"}.get(currency, currency)
+                return currency.upper() if len(currency) == 3 and currency.isalpha() else "EUR"
+            except (AttributeError, TypeError):
+                return "EUR"
+        return getattr(self, "_attr_native_unit_of_measurement", None)
 
     @property
     def native_value(self) -> StateType:
@@ -492,6 +547,52 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
                 value = int(energy_flow.get("outputDirection", 0))
                 return DIRECTION_STATES.get(value, f"Unknown ({value})")
 
+            # Values the Elekeeper portal derives from the readings above
+            elif self._sensor_key == "selfSufficiencyRate":
+                # Share of today's consumption not bought from the grid
+                consumption = energy_stat(plant_stats, "LOAD_ENERGY", "energy1Today")
+                if consumption <= 0:
+                    return None
+                imported = energy_stat(plant_stats, "BUY_AND_SELL", "energy1Today")
+                return round(max(consumption - imported, 0) / consumption * 100, 1)
+            elif self._sensor_key == "totalBatteryCharge":
+                return energy_stat(plant_stats, "CHARGE_AND_DISCHARGE", "energy1Total")
+            elif self._sensor_key == "totalBatteryDischarge":
+                return energy_stat(plant_stats, "CHARGE_AND_DISCHARGE", "energy2Total")
+            elif self._sensor_key == "batteryRemainingEnergy":
+                remaining = self._battery_remaining(device_data, battery_info)
+                return round(remaining[0], 2) if remaining else None
+            elif self._sensor_key == "batteryTimeToFull":
+                remaining = self._battery_remaining(device_data, battery_info)
+                bat_power = optional_float(energy_flow, "batPower")
+                charging = int(energy_flow.get("batteryDirection", 0) or 0) == -1
+                if not remaining or not charging or not bat_power:
+                    return None
+                stored, capacity = remaining
+                return round(max(capacity - stored, 0) / (bat_power / 1000), 2)
+            elif self._sensor_key in REVENUE_FIELDS:
+                return self._revenue(plant_data, device_data)[0]
+
+            elif self._sensor_key == "batteryCellVoltAvg":
+                # Battery voltage over the cells in series (e.g. 53.5 V / 16)
+                voltage = optional_float(battery_info, "batVoltage")
+                cells = self._detail_value("batteryCellCount")
+                if not voltage or not cells:
+                    return None
+                return round(voltage / cells * 1000)
+            elif self._sensor_key in ("batteryCellTempMax", "batteryCellTempMin"):
+                # BMS cell readings when the API has them, else the battery packs
+                value = self._detail_value()
+                if value is not None:
+                    return value
+                temps = [
+                    t for battery in plant_data.get("battery_list", {}).get("data", {}).get("list", []) or []
+                    if (t := to_float(battery.get("batTemperature"))) is not None
+                ]
+                if not temps:
+                    return None
+                return max(temps) if self._sensor_key == "batteryCellTempMax" else min(temps)
+
             # String and AC voltages from the per-inverter device info
             elif self._sensor_key in DEVICE_DETAIL_FIELDS:
                 return self._detail_value()
@@ -537,9 +638,19 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
 
         elif self._sensor_key == "inverterStatus":
             try:
-                _, _, _, _, device_alarms = self._sources()
+                plant_data, _, _, _, device_alarms = self._sources()
 
                 attributes = {}
+
+                # Inverter identity, as listed by the portal device table
+                devices = plant_data.get("device_list", {}).get("data", {}).get("list", [])
+                if self._device_sn is not None:
+                    devices = [d for d in devices if d.get("deviceSn") == self._device_sn]
+                if devices:
+                    attributes["serial_number"] = devices[0].get("deviceSn")
+                    attributes["model"] = devices[0].get("deviceModel")
+                    if len(devices) > 1:
+                        attributes["serial_numbers"] = [d.get("deviceSn") for d in devices]
 
                 alarm_list = device_alarms.get("list", [])
                 if alarm_list:
