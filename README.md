@@ -187,6 +187,54 @@ It started as a fork of [SAJeSolar](https://github.com/djansen1987/SAJeSolar) by
 - **Individual data**: Per-battery metrics for detailed analysis
 - **Calculated values**: Intelligent distribution of system data across batteries
 
+### 🏭 **Plant-level generation**
+The plant generation sensors (*Today*, *Current Month*, *Current Year* and
+*Total Generation*) report the **plant** energy, the same values the eSolar /
+Elekeeper portal shows. They include every inverter the plant ever had, so
+they keep counting when an inverter is replaced. The inverter counters
+restart with each new inverter, and stay available on the per-inverter
+devices.
+
+### 📥 **Energy history import**
+Home Assistant only keeps statistics from the day a sensor started. The
+`saj_esolar_cloud.import_history` action rebuilds the long-term statistics
+of the six lifetime energy sensors from the daily plant energy kept by the
+SAJ cloud:
+- Total Generation
+- Total Consumption
+- Total Grid Import and Total Grid Export
+- Total Battery Charge and Total Battery Discharge
+
+This fills the Energy dashboard and charts (week / month / year / total, and
+year-on-year comparisons) back to the day the plant was created.
+
+To run it:
+1. Go to **Developer tools → Actions**.
+2. Choose **SAJ eSolar: Import energy history**.
+3. Optionally set `plant_uid` and `start_date`; by default it imports every
+   monitored plant since its creation date.
+4. Run it.
+
+It runs in the background, with about one request per day of history, and
+reports the outcome as a notification.
+
+```yaml
+action: saj_esolar_cloud.import_history
+data:
+  start_date: "2025-07-12"   # optional
+```
+
+Notes:
+- **What it replaces:** it clears and rewrites the long-term statistics of
+  those six sensors. Run it again at any time to redo them.
+- **Matching the portal:** each month is matched to the portal's month
+  total. Days the inverter did not report (0 kWh in the cloud, energy still
+  counted in the month) receive the missing energy.
+- **No jump afterwards:** the last row matches the sensor's present value,
+  so later hours continue without a jump.
+- **One value per day:** history is stored at 23:00 of each day, so
+  hourly views of the past show each day's energy in that hour.
+
 ## 🛠️ Troubleshooting
 
 ### Common Issues
@@ -218,6 +266,15 @@ It started as a fork of [SAJeSolar](https://github.com/djansen1987/SAJeSolar) by
 - Values may differ slightly from eSolar portal due to timing
 - Check "Last Update" sensor for data freshness
 
+**Energy charts show huge or wrong totals (e.g. after replacing an inverter):**
+- Older versions read the generation from the current inverter. When an
+  inverter was replaced, the total dropped to the new inverter's own
+  counter, and Home Assistant counted each drop as a meter reset, adding the
+  whole value again.
+- Update to 1.2.0 or later (plant-level generation), then run
+  `saj_esolar_cloud.import_history` (see *Energy history import*) to rebuild
+  the statistics from the SAJ cloud.
+
 ## 📈 Energy Dashboard Integration
 
 All sensors are properly configured for Home Assistant's Energy Dashboard:
@@ -247,6 +304,7 @@ This build is a fork of [ha-saj-esolar-cloud](https://github.com/elboletaire/ha-
 - **Tolerant voltage field lookup**: PV1/PV2, inverter and grid voltage are matched against a list of known SAJ field spellings (case- and separator-insensitive) instead of a single fixed name, so they keep working across inverter families and firmware versions
 - **Averaged voltages on multi-inverter plants**: the plant device averages voltages across inverters instead of summing them
 - **`scripts/dump_device_fields.py`**: dumps the raw field names your inverter reports, to diagnose unavailable sensors
+- **Plant-level generation and history import**: generation sensors follow the plant (they survive an inverter replacement) and `saj_esolar_cloud.import_history` rebuilds the energy statistics from the SAJ cloud
 - **Elekeeper portal sensors**: inverter temperature, battery cell temperatures and voltages, remaining battery energy, time to full charge, self-sufficiency rate, lifetime battery charge/discharge and revenue (when the account reports it), used by the [SAJ Elekeeper Card](https://github.com/dmdias/saj-elekeeper-card)
 
 ## 🙏 Credits
