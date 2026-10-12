@@ -643,6 +643,14 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
         """Return additional state attributes for main plant sensors."""
+        if self._sensor_key == "lastUploadTime" and self._device_sn is None:
+            # Plant coordinates from the SAJ cloud (e.g. for a location map)
+            plant_data = self.coordinator.data.get(self._plant_uid, {}) or {}
+            details = (plant_data.get("plant_details", {}) or {}).get("data", {}) or {}
+            lat, lon = to_float(details.get("latitude")), to_float(details.get("longitude"))
+            if lat is None or lon is None or (lat == 0 and lon == 0):
+                return None
+            return {"latitude": lat, "longitude": lon}
         if self._sensor_key == "operatingMode":
             try:
                 _, _, _, battery_info, _ = self._sources()

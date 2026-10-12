@@ -195,6 +195,12 @@ they keep counting when an inverter is replaced. The inverter counters
 restart with each new inverter, and stay available on the per-inverter
 devices.
 
+### 📍 **Plant location**
+The plant *Last Update* sensor carries the plant coordinates kept in the SAJ
+cloud as `latitude` and `longitude` attributes. The
+[SAJ Elekeeper Card](https://github.com/dmdias/saj-elekeeper-card) uses them
+for its satellite view of the plant.
+
 ### 📥 **Energy history import**
 Home Assistant only keeps statistics from the day a sensor started. The
 `saj_esolar_cloud.import_history` action rebuilds the long-term statistics
