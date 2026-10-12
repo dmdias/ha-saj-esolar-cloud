@@ -26,7 +26,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
-from .const import CHART_DAY, DOMAIN
+from .const import CHART_DAY, CHART_MONTH, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -72,6 +72,34 @@ def _lifetime(plant_stats: dict[str, Any], key: str) -> float | None:
     return None
 
 
+def _reconcile(days: list[date], daily: dict[date, dict[str, Any]], monthly: dict[str, dict[str, Any]], field: str) -> list[tuple[date, float]]:
+    """Daily values adjusted so that every month adds up to the month total.
+
+    The difference goes to the days that reported nothing, or, when every day
+    reported something, is spread in proportion to the daily values. The
+    current month is left as reported (its total is still growing).
+    """
+    values = {day: float(daily[day].get(field) or 0) for day in days}
+    current = dt_util.now().strftime("%Y-%m")
+    for month, totals in monthly.items():
+        if month == current or totals.get(field) in (None, ""):
+            continue
+        month_days = [day for day in days if day.strftime("%Y-%m") == month]
+        diff = float(totals[field]) - sum(values[day] for day in month_days)
+        if abs(diff) < 0.05 or not month_days:
+            continue
+        empty = [day for day in month_days if values[day] == 0]
+        if empty and diff > 0:
+            for day in empty:
+                values[day] += diff / len(empty)
+        else:
+            reported = sum(values[day] for day in month_days)
+            for day in month_days:
+                values[day] += diff * (values[day] / reported if reported else 1 / len(month_days))
+        _LOGGER.debug("Adjusted %s of %s by %.2f kWh to match the month total", field, month, diff)
+    return [(day, max(values[day], 0.0)) for day in days]
+
+
 async def async_import_history(hass: HomeAssistant, coordinator, plant_uid: str, start: date | None = None) -> dict[str, Any]:
     """Fetch the daily plant energy since ``start`` and rewrite the statistics. Returns a summary."""
     registry = er.async_get(hass)
@@ -107,6 +135,16 @@ async def async_import_history(hass: HomeAssistant, coordinator, plant_uid: str,
     _LOGGER.info("Fetching the daily energy of plant %s for %d days since %s", plant_uid, len(days), start)
     daily = dict(await asyncio.gather(*(fetch(day) for day in days)))
 
+    # Month totals: the daily values miss the energy of days the inverter did
+    # not report (e.g. 0 kWh), which the month total still includes
+    months = sorted({day.strftime("%Y-%m") for day in days})
+
+    async def fetch_month(month: str) -> tuple[str, dict[str, Any]]:
+        async with semaphore:
+            return month, await coordinator.get_plant_energy(plant_uid, sn_list, CHART_MONTH, month)
+
+    monthly = dict(await asyncio.gather(*(fetch_month(month) for month in months)))
+
     plant_stats = ((coordinator.data or {}).get(plant_uid, {}).get("plant_statistics") or {}).get("data") or {}
     tz = dt_util.get_default_time_zone()
     now = dt_util.now()
@@ -117,7 +155,7 @@ async def async_import_history(hass: HomeAssistant, coordinator, plant_uid: str,
     summary: dict[str, Any] = {"plant": plant_uid, "start": start.isoformat(), "days": len(days), "sensors": {}}
     for key, entity_id in entity_ids.items():
         field = HISTORY_FIELDS[key]
-        values = [(day, float(daily[day].get(field) or 0)) for day in days]
+        values = _reconcile(days, daily, monthly, field)
         total = sum(value for _, value in values)
         lifetime = _lifetime(plant_stats, key)
         # The counter reads the lifetime total: offset the sums so the last row matches it
