@@ -227,6 +227,10 @@ All sensors are properly configured for Home Assistant's Energy Dashboard:
 - ✅ **Battery Storage**: Battery Charge/Discharge sensors
 - ✅ **Home Consumption**: Load consumption sensors
 
+## 🖥️ Elekeeper-style Dashboard
+
+[SAJ Elekeeper Card](https://github.com/dmdias/saj-elekeeper-card) recreates the SAJ Elekeeper portal in Home Assistant (energy flow, device panels, analysis and comparison charts) from this integration's sensors. Install it through HACS as a custom *Dashboard* repository; see its README for details.
+
 ## 🤝 Support
 
 For bugs, please [open an issue on GitHub](https://github.com/dmdias/ha-saj-esolar-cloud/issues).
@@ -243,6 +247,7 @@ This build is a fork of [ha-saj-esolar-cloud](https://github.com/elboletaire/ha-
 - **Tolerant voltage field lookup**: PV1/PV2, inverter and grid voltage are matched against a list of known SAJ field spellings (case- and separator-insensitive) instead of a single fixed name, so they keep working across inverter families and firmware versions
 - **Averaged voltages on multi-inverter plants**: the plant device averages voltages across inverters instead of summing them
 - **`scripts/dump_device_fields.py`**: dumps the raw field names your inverter reports, to diagnose unavailable sensors
+- **Elekeeper portal sensors**: inverter temperature, battery cell temperatures and voltages, remaining battery energy, time to full charge, self-sufficiency rate, lifetime battery charge/discharge and revenue (when the account reports it), used by the [SAJ Elekeeper Card](https://github.com/dmdias/saj-elekeeper-card)
 
 ## 🙏 Credits
 
