@@ -17,6 +17,7 @@ from homeassistant.const import (
     UnitOfPower,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
@@ -131,6 +132,18 @@ def _inverter_label(device_entry: dict[str, Any], device_sn: str) -> str:
     return device_sn
 
 
+# Home Assistant 2026.8+ links a device to its parent by device id (via_device is deprecated)
+_VIA_DEVICE_ID = "via_device_id" in getattr(DeviceInfo, "__annotations__", {})
+
+
+def _via(coordinator: SAJeSolarDataUpdateCoordinator, plant_uid: str) -> dict[str, Any]:
+    """The device_info key linking an inverter or battery to its plant."""
+    device_id = getattr(coordinator, "plant_device_ids", {}).get(plant_uid)
+    if _VIA_DEVICE_ID:
+        return {"via_device_id": device_id} if device_id else {}
+    return {"via_device": (DOMAIN, plant_uid)}
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -150,6 +163,14 @@ async def async_setup_entry(
         plant_data = coordinator.data.get(plant_uid, {})
         plant_info = plant_data.get("plant_info", {})
         plant_name = plant_info.get("plantName", plant_uid)
+        if _VIA_DEVICE_ID:
+            # The plant device must exist before its inverters and batteries point to it
+            plant_device = dr.async_get(hass).async_get_or_create(
+                config_entry_id=entry.entry_id, identifiers={(DOMAIN, plant_uid)}, name=plant_name, manufacturer="SAJ"
+            )
+            if not hasattr(coordinator, "plant_device_ids"):
+                coordinator.plant_device_ids = {}
+            coordinator.plant_device_ids[plant_uid] = plant_device.id
 
         # Plant-level sensors. With several inverters under one plant these
         # report the aggregate built by the coordinator.
@@ -274,7 +295,7 @@ class SAJeSolarSensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], SensorE
                 "manufacturer": "SAJ",
                 "model": device_data.get("deviceModel") or "H1",
                 "serial_number": device_sn,
-                "via_device": (DOMAIN, plant_uid),
+                **_via(coordinator, plant_uid),
             }
 
         self._attr_icon = sensor_config["icon"]
@@ -768,7 +789,7 @@ class SAJeBatterySensor(CoordinatorEntity[SAJeSolarDataUpdateCoordinator], Senso
             "name": battery_name,
             "manufacturer": "SAJ",
             "model": battery_model,
-            "via_device": (DOMAIN, plant_uid),
+            **_via(coordinator, plant_uid),
         }
 
         # Set device class from mapping
