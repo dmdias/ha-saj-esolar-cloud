@@ -100,6 +100,23 @@ def _reconcile(days: list[date], daily: dict[date, dict[str, Any]], monthly: dic
     return [(day, max(values[day], 0.0)) for day in days]
 
 
+def _continue_short_term(recorder, metadata: StatisticMetaData, last: StatisticData, now: datetime) -> None:
+    """Write the last total as a 5-minute statistic.
+
+    Clearing the statistics also clears the 5-minute ones, and the recorder
+    continues the sum from the last 5-minute row: without one it would start
+    again from zero on the next hour (the totals of the month then go
+    negative).
+    """
+    slot = now.replace(second=0, microsecond=0) - timedelta(minutes=now.minute % 5 + 5)
+    try:
+        from homeassistant.components.recorder.db_schema import StatisticsShortTerm
+
+        recorder.async_import_statistics(metadata, [StatisticData(start=slot, state=last["state"], sum=last["sum"])], StatisticsShortTerm)
+    except (ImportError, AttributeError, TypeError) as err:  # older Home Assistant versions
+        _LOGGER.warning("Could not continue the 5-minute statistics after the import: %s", err)
+
+
 async def async_import_history(hass: HomeAssistant, coordinator, plant_uid: str, start: date | None = None) -> dict[str, Any]:
     """Fetch the daily plant energy since ``start`` and rewrite the statistics. Returns a summary."""
     registry = er.async_get(hass)
@@ -185,6 +202,7 @@ async def async_import_history(hass: HomeAssistant, coordinator, plant_uid: str,
             unit_of_measurement="kWh",
         )
         async_import_statistics(hass, metadata, rows)
+        _continue_short_term(recorder, metadata, rows[-1], now)
         summary["sensors"][entity_id] = round(total, 2)
 
     _LOGGER.info("Imported the energy history of plant %s: %s", plant_uid, summary)
